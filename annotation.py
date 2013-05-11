@@ -1,3 +1,5 @@
+import types
+
 import interval
 from more_itertools import pairwise
 
@@ -48,7 +50,6 @@ class Annotation(object):
 
 
 class Reference(object):
-    # TODO maybe this should separate genes from sjgenes?
     def __init__(self, name, size, genes=None):
         self.name = name
         self.size = size
@@ -162,3 +163,77 @@ class Intron(Region):
 
     def __repr__(self):
         return 'Intron({}, {}, {})'.format(self.start, self.end, self.transcript)
+
+
+class AnnotationBuilderMeta(type):
+    def __new__(cls, name, bases, attrs):
+        handlers = {}
+        attrs['handlers'] = handlers
+
+        handlers_cls = attrs.get('Handlers')
+        if handlers_cls:
+            for key, value in handlers_cls.__dict__.items():
+                if isinstance(value, types.FunctionType):
+                    handlers[key] = value
+
+            aliases = getattr(handlers_cls, 'aliases')
+            if aliases:
+                for key, value in aliases.items():
+                    handlers[key] = value
+
+            del attrs['Handlers']
+
+        return super(AnnotationBuilderMeta, cls).__new__(cls, name, bases, attrs)
+        
+
+class AnnotationBuilderBase(object):
+    __metaclass__ = AnnotationBuilderMeta
+
+
+class AnnotationBuilder(AnnotationBuilderBase):
+
+    # TODO and if a record has multiple parents? Duplicate it?
+
+    class Handlers:
+
+        def reference(record, parent):
+            ref = Reference(record.ID, record.end)
+            ref.parent = parent
+            return ref
+
+        def gene(record, parent):
+            gene = Gene(record.strand)
+            gene.reference = parent
+            return gene
+
+        def transcript(record, parent):
+            t = Transcript()
+            t.gene = parent
+            return t
+
+        def exon(record, parent):
+            e = Exon(record.start, record.end)
+            e.transcript = parent
+            return e
+
+        aliases = {}
+
+    def __call__(self, tree):
+
+        def func(node, parent=None):
+
+            handler = self.handlers[node.record.type]
+            x = handler(node.record, parent)
+
+            for child in node.children:
+                func(child, x)
+
+            return x
+
+        anno = Annotation()
+        refs = []
+        for child in tree.root.children:
+            ref = func(child, anno)
+            refs.append(ref)
+
+        return anno
