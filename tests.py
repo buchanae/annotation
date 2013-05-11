@@ -98,6 +98,9 @@ def test_handlers_subclass():
     baz = b.Handlers.get_handler('baz')
     eq_(baz(), 'foo')
 
+    dne = b.Handlers.get_handler('does not exist')
+    eq_(dne, None)
+
 
 if __name__ == '__main__':
     nose.main()

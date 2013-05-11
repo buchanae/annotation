@@ -210,7 +210,8 @@ class HandlersBase(object):
             return getattr(cls, name)
         except AttributeError:
             aliased = cls._aliases_inverted.get(name)
-            return cls.get_handler(aliased)
+            if aliased:
+                return cls.get_handler(aliased)
 
 
 class AnnotationBuilder(object):
