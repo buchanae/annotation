@@ -79,8 +79,8 @@ def test_handler_aliases():
             aliases = {'foo': ['bar', 'baz']}
 
     b = Builder()
-    eq_(b.Handlers.bar, b.Handlers.foo)
-    eq_(b.Handlers.baz, b.Handlers.foo)
+    eq_(b.Handlers.get_handler('bar'), b.Handlers.foo)
+    eq_(b.Handlers.get_handler('baz'), b.Handlers.foo)
 
 def test_handlers_subclass():
     class Builder(object):
@@ -90,9 +90,13 @@ def test_handlers_subclass():
     class Sub(Builder):
         class Handlers(Builder.Handlers):
             bar = Builder.Handlers.foo
+            aliases = {'foo': ['baz']}
 
     b = Sub()
-    eq_(b.Handlers.bar(), 'foo')
+    bar = b.Handlers.get_handler('bar')
+    eq_(bar(), 'foo')
+    baz = b.Handlers.get_handler('baz')
+    eq_(baz(), 'foo')
 
 
 if __name__ == '__main__':

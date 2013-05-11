@@ -181,23 +181,37 @@ class Intron(Region):
         return 'Intron({}, {}, {})'.format(self.start, self.end, self.transcript)
 
 
-# TODO is this approach to defining handlers too complicated?
 class HandlersMeta(type):
     def __new__(cls, name, bases, attrs):
-        aliases = attrs.get('aliases', {})
 
         for key, value in attrs.items():
             if isinstance(value, types.FunctionType):
-                method = staticmethod(value)
-                attrs[key] = method
-                for alias in aliases.get(key, []):
-                    attrs[alias] = method
+                attrs[key] = staticmethod(value)
 
         return super(HandlersMeta, cls).__new__(cls, name, bases, attrs)
+
+    def __init__(cls, name, bases, attrs):
+
+        inverted = {}
+        for key, key_aliases in getattr(cls, 'aliases').items():
+            for alias in key_aliases:
+                inverted[alias] = key
+
+        cls._aliases_inverted = inverted
         
 
 class HandlersBase(object):
     __metaclass__ = HandlersMeta
+    aliases = {}
+
+    @classmethod
+    def get_handler(cls, name):
+        try:
+            return getattr(cls, name)
+        except AttributeError:
+            aliased = cls._aliases_inverted.get(name)
+            return cls.get_handler(aliased)
+
 
 class AnnotationBuilder(object):
 
@@ -229,8 +243,8 @@ class AnnotationBuilder(object):
 
         def func(node, parent=None):
 
-            # TODO catch KeyError for unhandled types
-            handler = getattr(self.Handlers, node.record.type)
+            # TODO warning or error for unhandled types
+            handler = self.Handlers.get_handler(node.record.type)
             x = handler(node.record, parent)
 
             for child in node.children:
