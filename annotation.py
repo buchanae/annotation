@@ -67,9 +67,7 @@ class ParentChild(object):
         setattr(obj, self.name, value)
         parent = getattr(obj, self.name)
         children = getattr(parent, self.children_name)
-        print parent
         children.append(obj)
-        print children
 
 
 class Reference(object):
@@ -246,17 +244,19 @@ class AnnotationBuilder(object):
 
             # TODO warning or error for unhandled types
             handler = self.Handlers.get_handler(node.record.type)
-            x = handler(node.record, parent)
+            if handler:
+                x = handler(node.record, parent)
 
-            for child in node.children:
-                func(child, x)
+                for child in node.children:
+                    func(child, x)
 
-            return x
+                return x
 
         anno = Annotation()
         refs = []
         for child in tree.root.children:
             ref = func(child, anno)
-            refs.append(ref)
+            if ref:
+                refs.append(ref)
 
         return anno

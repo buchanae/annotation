@@ -21,6 +21,8 @@ transcript_b = Record('transcript_b', 20, 50, '+', 'transcript')
 
 gene_a = Record('gene_a', 20, 70, '+', 'gene')
 
+unhandled_a = Record('unhandled_a', 0, 0, '', 'unhandled')
+
 ref_a = Record('ref_a', 1, 300, '+', 'reference')
 
 
@@ -34,7 +36,9 @@ transcript_a_node = Node(transcript_a, [exon_a_node, exon_b_node, exon_c_node])
 transcript_b_node = Node(transcript_b, [exon_d_node, exon_e_node])
 
 gene_a_node = Node(gene_a, [transcript_a_node, transcript_b_node])
-ref_a_node = Node(ref_a, [gene_a_node])
+unhandled_a_node = Node(unhandled_a, [])
+
+ref_a_node = Node(ref_a, [gene_a_node, unhandled_a_node])
 root = Node(None, [ref_a_node])
 tree = Tree(root)
 
