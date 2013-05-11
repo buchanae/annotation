@@ -20,8 +20,8 @@ class Region(interval.Closed, PositionHelpers): pass
 
 class Annotation(object):
 
-    def __init__(self, references):
-        self.references = references
+    def __init__(self):
+        self.references = []
 
     @property
     def genes(self):
@@ -50,27 +50,43 @@ class Annotation(object):
                 yield intron
 
 
+class ParentChild(object):
+    def __init__(self, name, children_name):
+        self.name = '_' + name
+        self.children_name = children_name
+
+    def __get__(self, obj, objtype=None):
+        return getattr(obj, self.name)
+
+    def __set__(self, obj, value):
+        existing = getattr(obj, self.name, None)
+        if existing:
+            children = getattr(existing, self.children_name)
+            children.remove(obj)
+
+        setattr(obj, self.name, value)
+        parent = getattr(obj, self.name)
+        children = getattr(parent, self.children_name)
+        print parent
+        children.append(obj)
+        print children
+
+
 class Reference(object):
-    def __init__(self, name, size, genes=None):
+    def __init__(self, name, size):
         self.name = name
         self.size = size
         self.genes = []
-        if genes:
-            for gene in genes:
-                gene.reference = self
-                self.genes.append(gene)
+
+    annotation = ParentChild('annotation', 'references')
 
 
 class Gene(Region):
-    def __init__(self, strand, transcripts=None):
+    def __init__(self, strand):
         self.strand = strand
-
-        self.reference = None
         self.transcripts = []
-        if transcripts:
-            for transcript in transcripts:
-                transcript.gene = self
-                self.transcripts.append(transcript)
+
+    reference = ParentChild('reference', 'genes')
 
     @property
     def start(self):
@@ -87,13 +103,10 @@ class Gene(Region):
 
 class Transcript(object):
 
-    def __init__(self, exons=None):
-        self.gene = None
+    def __init__(self):
         self._exons = []
-        if exons:
-            for exon in exons:
-                exon.transcript = self
-                self._exons.append(exon)
+
+    gene = ParentChild('gene', 'transcripts')
 
     @property
     def strand(self):
@@ -126,10 +139,12 @@ class Transcript(object):
 
 
 class Exon(Region):
+
     def __init__(self, start, end):
-        self.transcript = None
         self.start = start
         self.end = end
+
+    transcript = ParentChild('transcript', '_exons')
 
     @property
     def strand(self):
@@ -197,7 +212,7 @@ class AnnotationBuilder(AnnotationBuilderBase):
 
         def reference(record, parent):
             ref = Reference(record.ID, record.end)
-            ref.parent = parent
+            ref.annotation = parent
             return ref
 
         def gene(record, parent):
