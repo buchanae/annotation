@@ -32,6 +32,7 @@ class Annotation(object):
     @property
     def transcripts(self):
         for gene in self.genes:
+            # TODO wrong
             if isinstance(gene, Gene):
                 for transcript in gene.transcripts:
                     yield transcript
@@ -180,8 +181,6 @@ class AnnotationBuilderMeta(type):
             if aliases:
                 for key, value in aliases.items():
                     handlers[key] = value
-
-            del attrs['Handlers']
 
         return super(AnnotationBuilderMeta, cls).__new__(cls, name, bases, attrs)
         
