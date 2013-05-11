@@ -181,34 +181,29 @@ class Intron(Region):
         return 'Intron({}, {}, {})'.format(self.start, self.end, self.transcript)
 
 
-class AnnotationBuilderMeta(type):
+# TODO is this approach to defining handlers too complicated?
+class HandlersMeta(type):
     def __new__(cls, name, bases, attrs):
-        handlers = {}
-        attrs['handlers'] = handlers
+        aliases = attrs.get('aliases', {})
 
-        handlers_cls = attrs.get('Handlers')
-        if handlers_cls:
-            for key, value in handlers_cls.__dict__.items():
-                if isinstance(value, types.FunctionType):
-                    handlers[key] = value
+        for key, value in attrs.items():
+            if isinstance(value, types.FunctionType):
+                method = staticmethod(value)
+                attrs[key] = method
+                for alias in aliases.get(key, []):
+                    attrs[alias] = method
 
-            aliases = getattr(handlers_cls, 'aliases')
-            if aliases:
-                for key, value in aliases.items():
-                    handlers[key] = value
-
-        return super(AnnotationBuilderMeta, cls).__new__(cls, name, bases, attrs)
+        return super(HandlersMeta, cls).__new__(cls, name, bases, attrs)
         
 
-class AnnotationBuilderBase(object):
-    __metaclass__ = AnnotationBuilderMeta
+class HandlersBase(object):
+    __metaclass__ = HandlersMeta
 
-
-class AnnotationBuilder(AnnotationBuilderBase):
+class AnnotationBuilder(object):
 
     # TODO and if a record has multiple parents? Duplicate it?
 
-    class Handlers:
+    class Handlers(HandlersBase):
 
         def reference(record, parent):
             ref = Reference(record.ID, record.end)
@@ -230,13 +225,12 @@ class AnnotationBuilder(AnnotationBuilderBase):
             e.transcript = parent
             return e
 
-        aliases = {}
-
     def __call__(self, tree):
 
         def func(node, parent=None):
 
-            handler = self.handlers[node.record.type]
+            # TODO catch KeyError for unhandled types
+            handler = getattr(self.Handlers, node.record.type)
             x = handler(node.record, parent)
 
             for child in node.children:

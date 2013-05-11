@@ -72,6 +72,28 @@ def test_AnnotationBuilder():
     eq_(exon_e.start, 40)
     eq_(exon_e.end, 50)
 
+def test_handler_aliases():
+    class Builder(object):
+        class Handlers(annotation.HandlersBase):
+            def foo(): pass
+            aliases = {'foo': ['bar', 'baz']}
+
+    b = Builder()
+    eq_(b.Handlers.bar, b.Handlers.foo)
+    eq_(b.Handlers.baz, b.Handlers.foo)
+
+def test_handlers_subclass():
+    class Builder(object):
+        class Handlers(annotation.HandlersBase):
+            def foo(): return 'foo'
+
+    class Sub(Builder):
+        class Handlers(Builder.Handlers):
+            bar = Builder.Handlers.foo
+
+    b = Sub()
+    eq_(b.Handlers.bar(), 'foo')
+
 
 if __name__ == '__main__':
     nose.main()
