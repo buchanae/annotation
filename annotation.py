@@ -179,84 +179,69 @@ class Intron(Region):
         return 'Intron({}, {}, {})'.format(self.start, self.end, self.transcript)
 
 
-class HandlersMeta(type):
-    def __new__(cls, name, bases, attrs):
+class AnnotationBuilderBase(object):
 
-        for key, value in attrs.items():
-            if isinstance(value, types.FunctionType):
-                attrs[key] = staticmethod(value)
+    # TODO what if a record has multiple parents? Duplicate it?
+    def get_handler(self, node): pass
 
-        return super(HandlersMeta, cls).__new__(cls, name, bases, attrs)
+    def handle(self, nodes):
+        handled = []
+        for node in nodes:
+            handler = self.get_handler(node)
+            if handler:
+                x = handler(node)
+                handled.append(x)
+        return handled
 
-    def __init__(cls, name, bases, attrs):
+    __call__ = handle
 
-        inverted = {}
-        for key, key_aliases in getattr(cls, 'aliases').items():
-            for alias in key_aliases:
-                inverted[alias] = key
 
-        cls._aliases_inverted = inverted
-        
+class AnnotationBuilder(AnnotationBuilderBase):
 
-class HandlersBase(object):
-    __metaclass__ = HandlersMeta
     aliases = {}
 
-    @classmethod
-    def get_handler(cls, name):
-        try:
-            return getattr(cls, name)
-        except AttributeError:
-            aliased = cls._aliases_inverted.get(name)
-            if aliased:
-                return cls.get_handler(aliased)
+    def __init__(self):
+        self._aliases_inverted = {}
+        for key, aliases in self.aliases.items():
+            for alias in aliases:
+                self._aliases_inverted[alias] = key
 
+    def get_handler(self, node):
+        name = self._aliases_inverted.get(node.type, node.type)
+        return getattr(self, name, None)
 
-class AnnotationBuilder(object):
+    def reference(self, node):
+        ref = Reference(node.ID, node.end)
 
-    # TODO and if a record has multiple parents? Duplicate it?
+        for child in self.handle(node.children):
+            child.reference = ref
 
-    class Handlers(HandlersBase):
+        return ref
 
-        def reference(record, parent):
-            ref = Reference(record.ID, record.end)
-            ref.annotation = parent
-            return ref
+    def gene(self, node):
+        gene = Gene(node.strand)
 
-        def gene(record, parent):
-            gene = Gene(record.strand)
-            gene.reference = parent
-            return gene
+        for child in self.handle(node.children):
+            child.gene = gene
 
-        def transcript(record, parent):
-            t = Transcript()
-            t.gene = parent
-            return t
+        return gene
 
-        def exon(record, parent):
-            e = Exon(record.start, record.end)
-            e.transcript = parent
-            return e
+    def transcript(self, node):
+        t = Transcript()
 
-    def __call__(self, tree):
+        for child in self.handle(node.children):
+            child.transcript = t
 
-        def func(node, parent=None):
+        return t
 
-            # TODO warning or error for unhandled types
-            handler = self.Handlers.get_handler(node.record.type)
-            if handler:
-                x = handler(node.record, parent)
+    def exon(self, node):
+        e = Exon(node.start, node.end)
+        return e
 
-                for child in node.children:
-                    func(child, x)
-
-                return x
-
+    def __call__(self, refs):
         anno = Annotation()
-        refs = []
-        for child in tree.root.children:
-            ref = func(child, anno)
-            if ref:
-                refs.append(ref)
+
+        for ref in self.handle(refs):
+            ref.annotation = anno
 
         return anno
