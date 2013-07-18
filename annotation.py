@@ -1,6 +1,4 @@
-import types
-
-import interval
+from interval.closed import Interval
 from more_itertools import pairwise
 
 
@@ -15,7 +13,7 @@ class PositionHelpers(object):
         return self.start if self.strand == '-' else self.end
 
 
-class Region(interval.Closed, PositionHelpers): pass
+class Region(Interval, PositionHelpers): pass
 
 
 class Annotation(object):
