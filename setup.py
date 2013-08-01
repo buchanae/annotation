@@ -12,7 +12,7 @@ setup(
     py_modules=['annotation'],
     dependency_links=[
         'http://github.com/abuchanan/interval/archive/v1.0.0.zip#egg=abuchanan_interval-1.0.0',
-        'http://github.com/abuchanan/interval/archive/v0.2.0.zip#egg=abuchanan_sequence_utils-0.2.0',
+        'http://github.com/abuchanan/sequence_utils/archive/v0.2.0.zip#egg=abuchanan_sequence_utils-0.2.0',
     ],
     install_requires=[
         'more_itertools',
