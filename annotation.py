@@ -1,6 +1,8 @@
 from interval.closed import Interval
 from more_itertools import pairwise
 
+import sequence_utils
+
 
 class PositionHelpers(object):
 
@@ -11,6 +13,37 @@ class PositionHelpers(object):
     @property
     def three_prime(self):
         return self.start if self.strand == '-' else self.end
+
+
+class TranscriptSequencesMixin(object):
+
+    @property
+    def sequence(self):
+        ref_seq = self.reference.sequence
+        reverse = self.strand == '-'
+        return sequence_utils.get_transcript_seq(ref_seq, self.exons, reverse)
+
+    @property
+    def orfs(self):
+        orfs = sequence_utils.find_orfs(self.sequence)
+
+        # find_orfs() returns relative positions,
+        # so we need to translate those to absolute positions
+        abs_orfs = []
+
+        for orf in orfs:
+            start = self.rel_to_abs(orf.start)
+            end = self.rel_to_abs(orf.end)
+
+            # If this transcript is on the reverse strand,
+            # our positions are backwards, so swap them.
+            if self.strand == '-':
+                start, end = end, start
+
+            interval = Interval(start, end)
+            abs_orfs.append(interval)
+
+        return abs_orfs
 
 
 class Region(Interval, PositionHelpers): pass
@@ -133,6 +166,24 @@ class Transcript(object):
             introns.append(i)
         return introns
 
+    @property
+    def length(self):
+        return sum(exon.length for exon in self.exons)
+
+    def rel_to_abs(self, rel):
+        if rel < 1 or rel > self.length:
+            # TODO better exception and/or message here
+            raise IndexError()
+
+        l = 0
+        for exon in self.exons:
+            if l <= rel <= l + exon.length:
+                if self.strand == '-':
+                    return exon.five_prime - (rel - l - 1)
+                else:
+                    return exon.five_prime + (rel - l - 1)
+
+            l += exon.length
 
 class Exon(Region):
 
