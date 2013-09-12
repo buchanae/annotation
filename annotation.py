@@ -4,6 +4,9 @@ from more_itertools import pairwise
 import sequence_utils
 
 
+__version__ = '1.1.0'
+
+
 class PositionHelpers(object):
 
     @property
@@ -247,6 +250,12 @@ class AnnotationBuilderBase(object):
 
 class AnnotationBuilder(AnnotationBuilderBase):
 
+    Annotation = Annotation
+    Reference = Reference
+    Gene = Gene
+    Transcript = Transcript
+    Exon = Exon
+
     aliases = {}
 
     def __init__(self):
@@ -260,7 +269,7 @@ class AnnotationBuilder(AnnotationBuilderBase):
         return getattr(self, name, None)
 
     def reference(self, node):
-        ref = Reference(node.ID, node.end)
+        ref = self.Reference(node.ID, node.end)
 
         for child in self.handle(node.children):
             child.reference = ref
@@ -268,7 +277,7 @@ class AnnotationBuilder(AnnotationBuilderBase):
         return ref
 
     def gene(self, node):
-        gene = Gene(node.strand)
+        gene = self.Gene(node.strand)
 
         for child in self.handle(node.children):
             child.gene = gene
@@ -276,7 +285,7 @@ class AnnotationBuilder(AnnotationBuilderBase):
         return gene
 
     def transcript(self, node):
-        t = Transcript()
+        t = self.Transcript()
 
         for child in self.handle(node.children):
             child.transcript = t
@@ -284,11 +293,11 @@ class AnnotationBuilder(AnnotationBuilderBase):
         return t
 
     def exon(self, node):
-        e = Exon(node.start, node.end)
+        e = self.Exon(node.start, node.end)
         return e
 
     def __call__(self, refs):
-        anno = Annotation()
+        anno = self.Annotation()
 
         for ref in self.handle(refs):
             ref.annotation = anno
