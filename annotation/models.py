@@ -5,25 +5,27 @@ from more_itertools import pairwise
 
 import sequence_utils
 
-from annotation import gff_types
-from annotation.builders import GFFBuilder, Handler
+from annotation import sequences
+from annotation.builders.gff import DefaultGFFBuilder
 
 
 __version__ = '2.0.0'
 
-
-class PositionHelpers(object):
-
-    @property
-    def five_prime(self):
-        return self.end if self.strand == '-' else self.start
-
-    @property
-    def three_prime(self):
-        return self.start if self.strand == '-' else self.end
+# TODO drop strand and use a boolean "reversed" or "reverse_strand" instead?
 
 
 class TreeNode(object):
+    '''Dead simple representation of a tree node.
+
+    A tree node has one parent and multiple children.
+
+    When a TreeNode's parent is set, the child is added to the parent's
+    children automatically, and likewise if the parent is unset,
+    the child is removed from the parent's children.
+
+    Note, this does not (yet) handle the opposite, i.e. if you remove
+    a child node from the parent, that child's parent is not unset.
+    '''
     def __init__(self):
         self._parent = None
         self.children = []
@@ -42,10 +44,24 @@ class TreeNode(object):
         self._parent.children.append(self)
 
 
-class Region(Interval, PositionHelpers): pass
+class PositionHelpers(object):
+    '''Some basic helpers for genomic positions.'''
+
+    @property
+    def five_prime(self):
+        return self.end if self.strand == '-' else self.start
+
+    @property
+    def three_prime(self):
+        return self.start if self.strand == '-' else self.end
 
 
-class Reference(TreeNode):
+# TODO Region should have a reference
+class Region(Interval, PositionHelpers, sequences.RegionSequencesMixin): pass
+
+class Reference(TreeNode, sequences.ReferenceSequencesMixin):
+    '''Model representing a reference feature, e.g. a chromosome.'''
+
     def __init__(self, name, size):
         super(Reference, self).__init__()
         self.name = name
@@ -57,6 +73,8 @@ class Reference(TreeNode):
 
 
 class Gene(Region, TreeNode):
+    '''Model representing a gene feature.'''
+
     def __init__(self, strand):
         TreeNode.__init__(self)
         self.strand = strand
@@ -72,11 +90,6 @@ class Gene(Region, TreeNode):
     @property
     def end(self):
         return max(t.end for t in self.transcripts)
-
-    # TODO find an appropriate place for sequence stuff
-    def sequence(self, genome):
-        # TODO handle strand, i.e. reverse complement 
-        return genome[self.reference.name][self.start - 1:self.end]
 
 
 class Intron(Region, TreeNode):
@@ -106,7 +119,7 @@ class Intron(Region, TreeNode):
         return 'Intron({}, {}, {})'.format(self.start, self.end, self.transcript)
 
 
-class Transcript(TreeNode):
+class Transcript(TreeNode, sequences.TranscriptSequencesMixin):
 
     Intron = Intron
 
@@ -186,62 +199,19 @@ class Exon(Region, TreeNode):
         return self.transcript.gene.reference
 
 
-
-def make_introns(transcript):
-    pass
-
-def transcript_post_transform(transcript, node):
-    make_introns(transcript)
-
-
-class ReferenceHandler(Handler):
-    transformer = Reference.from_GFF
-
-
-class GeneHandler(Handler):
-    transformer = Gene.from_GFF
-
-    @staticmethod
-    def parent_ID(record):
-        return Handler.parent_ID(record) or record.seqid
-
-
-class TranscriptHandler(Handler):
-    transformer = Transcript.from_GFF
-
-
-class ExonHandler(Handler):
-    transformer = Exon.from_GFF
-
-
-default_handlers = [
-    ReferenceHandler(gff_types.references),
-    GeneHandler(gff_types.genes),
-    TranscriptHandler(gff_types.transcripts),
-    ExonHandler(gff_types.exons),
-]
-default_builder = GFFBuilder(default_handlers)
-        
-
 class Annotation(TreeNode):
-
-    # TODO the way I'm adding these builder methods seems a little weird to me
-    builder = default_builder
+    builder = DefaultGFFBuilder(Reference.from_GFF, Gene.from_GFF,
+                                Transcript.from_GFF, Exon.from_GFF)
+        
+    @classmethod
+    def _build_from(cls, build, records, *args, **kwargs):
+        anno = cls(*args, **kwargs)
+        return build(records, root=anno)
+        
+    @classmethod
+    def from_GFF_records(cls, records, *args, **kwargs):
+        return cls._build_from(cls.builder.from_records, records, *args, **kwargs)
 
     @classmethod
-    def from_GFF_tree(cls, tree):
-        anno = cls()
-        cls.builder.from_tree(tree, anno)
-        return anno
-
-    @classmethod
-    def from_GFF(cls, records):
-        anno = cls()
-        cls.builder.from_records(records, anno)
-        return anno
-
-    @classmethod
-    def from_GFF_file(cls, path):
-        anno = cls()
-        cls.builder.from_file(path, anno)
-        return anno
+    def from_GFF_file(cls, path, *args, **kwargs):
+        return cls._build_from(cls.builder.from_file, path, *args, **kwargs)

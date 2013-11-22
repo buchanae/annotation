@@ -1,5 +1,22 @@
 import sequence_utils
 
+
+class ReferenceSequencesMixin(object):
+    @property
+    def sequence(self):
+        return self.annotation.sequences[self.reference.name]
+
+
+class RegionSequencesMixin(object):
+    @property
+    def sequence(self):
+        # Region positions are 1-based, closed intervals,
+        # Python strings are 0-based, half-open intervals,
+        # so we need to transform the start position.
+        start = self.start - 1
+        return self.reference.sequence[start:self.end]
+
+
 class TranscriptSequencesMixin(object):
 
     @property

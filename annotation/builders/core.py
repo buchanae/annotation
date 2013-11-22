@@ -1,14 +1,21 @@
+from __future__ import absolute_import
+
 from collections import defaultdict
 import logging
 import re
 
-import gff
 
 log = logging.getLogger('annotation.builder')
 
-class MultipleParents(Exception): pass
 
-class Handler(object):
+class HandlerNotFound(Exception): pass
+
+
+# TODO idea: what if handlers could somehow communicate with one another?
+#            could be very powerful.
+
+
+class HandlerBase(object):
 
     def __init__(self, types):
         self.types = types
@@ -16,35 +23,36 @@ class Handler(object):
     def matches(self, record):
         return record.type in self.types
 
-    @staticmethod
-    def transformer(record): pass
+    def transform(self, record): pass
 
-    @staticmethod
-    def post_transformer(node, record): pass
+    # TODO post transform is not implemented in the builder
+    def post_transform(self, node, record): pass
 
-    @staticmethod
-    def ID(record):
+    def ID(self, record):
         return record.ID
 
-    @staticmethod
-    def parent_ID(record):
-        parent_IDs = record.parent_IDs
+    def parent_ID(self, record):
+        return record.parent_ID
 
-        if parent_IDs:
-            if len(parent_IDs) == 1:
-                return parent_IDs[0]
-            elif len(parent_IDs) > 1:
-                # Note: this library doesn't yet know how to handle multiple parents.
-                #       We raise an exception to ensure the user knows that.
-                # TODO error message
-                # TODO consider logging an error or warning instead
-                raise MultipleParents()
+    @classmethod
+    def make(cls, name, transform, post_transform=None):
+        # transform and post_transform need to be wrapped so that they
+        # accept the "self" argument, since they will be bound to a Handler instance
+        # when they're created.
+        def wrap(fn):
+            def wrapper(self, *args, **kwargs):
+                return fn(*args, **kwargs)
+            return wrapper
+
+        attrs = {'transform': wrap(transform)}
+
+        if post_transform:
+            attrs['post_transform'] = wrap(post_transform)
+
+        return type(name, (cls,), attrs)
 
 
-class HandlerNotFound(Exception): pass
-
-class GFFBuilder(object):
-    # TODO what if a record has multiple parents?
+class Builder(object):
 
     def __init__(self, handlers):
         self.handlers = handlers
@@ -56,21 +64,18 @@ class GFFBuilder(object):
 
         raise HandlerNotFound()
 
-    # TODO is it weird to pass in the root like this? probably.
-
-    def from_records(self, records, root):
+    def build(self, records, root=None):
         children_of = defaultdict(list)
         orphans = []
 
-        # Go through every record and transform it into an annotation Model
-        # e.g. gff record -> Gene instance
+        # Go through every record and transform it into a node
         for record in records:
             try:
                 handler = self._find_handler(record)
             except HandlerNotFound:
                 log.debug("Couldn't find handler for {}".format(record))
             else:
-                node = handler.transformer(record)
+                node = handler.transform(record)
 
                 ID = handler.ID(record)
                 parent_ID = handler.parent_ID(record)
@@ -83,7 +88,7 @@ class GFFBuilder(object):
 
         # We make a second pass to link the nodes into a tree.
         # We make two passes because we can't guarantee that a parent is defined
-        # before it's children (GFF files are frequently a mess).
+        # before it's children (e.g. GFF files are frequently a mess).
         #
         # TODO consider requiring that parents are defined before children
         #      for the sake of efficiency, and provide an alternative to fix the GFF
@@ -96,10 +101,10 @@ class GFFBuilder(object):
 
         for ID, orphan in orphans:
             link_children(ID, orphan)
-            orphan.parent = root
-            
+            if root:
+                orphan.parent = root
 
-    def from_file(self, path, root):
-        with open(path) as fh:
-            records = gff.GFF.from_stream(fh)
-            return self.from_records(records, root)
+        if root:
+            return root
+        else:
+            return orphans
