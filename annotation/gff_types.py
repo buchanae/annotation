@@ -1,16 +1,16 @@
-reference_types = [
+references = [
     'reference',
     'chromosome',
     'contig',
 ]
 
-gene_types = [
+genes = [
     'gene',
     'pseudogene',
     'transposable_element_gene',
 ]
 
-transcript_types = [
+transcripts = [
     'mRNA',
     'snRNA', 
     'rRNA',
@@ -22,7 +22,7 @@ transcript_types = [
     'pseudogenic_transcript',
 ]
 
-exon_types = [
+exons = [
     'exon',
     'pseudogenic_exon',
 ]

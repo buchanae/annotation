@@ -1,3 +1,4 @@
+from collections import defaultdict
 import logging
 import re
 
@@ -5,13 +6,39 @@ import gff
 
 log = logging.getLogger('annotation.builder')
 
-def noop(*args, **kwargs): pass
+class MultipleParents(Exception): pass
 
 class Handler(object):
-    def __init__(self, matchers, transformer, post_transformer=noop):
-        self.matchers = matchers
-        self.transformer = transformer
-        self.post_transformer = post_transformer
+
+    def __init__(self, types):
+        self.types = types
+
+    def matches(self, record):
+        return record.type in self.types
+
+    @staticmethod
+    def transformer(record): pass
+
+    @staticmethod
+    def post_transformer(node, record): pass
+
+    @staticmethod
+    def ID(record):
+        return record.ID
+
+    @staticmethod
+    def parent_ID(record):
+        parent_IDs = record.parent_IDs
+
+        if parent_IDs:
+            if len(parent_IDs) == 1:
+                return parent_IDs[0]
+            elif len(parent_IDs) > 1:
+                # Note: this library doesn't yet know how to handle multiple parents.
+                #       We raise an exception to ensure the user knows that.
+                # TODO error message
+                # TODO consider logging an error or warning instead
+                raise MultipleParents()
 
 
 class HandlerNotFound(Exception): pass
@@ -22,38 +49,55 @@ class GFFBuilder(object):
     def __init__(self, handlers):
         self.handlers = handlers
 
-    def _find_handler(self, node):
+    def _find_handler(self, record):
         for handler in self.handlers:
-            for matcher in handler.matchers:
-                if callable(matcher) and matcher(node.record):
-                    return handler
-                elif re.match(matcher, node.record.type):
-                    return handler
+            if handler.matches(record):
+                return handler
 
         raise HandlerNotFound()
 
-    def transform_node(self, node, parent):
-        try:
-            handler = self._find_handler(node)
-        except HandlerNotFound:
-            log.debug("Couldn't find handler for {}".format(node))
-        else:
-            transformed = handler.transformer(node.record)
-            transformed.parent = parent
-            for child in node.children:
-                self.transform_node(child, transformed)
-            handler.post_transformer(transformed, node)
-
     # TODO is it weird to pass in the root like this? probably.
 
-    def from_tree(self, gff_tree, root):
-        print gff_tree.children
-        for child in gff_tree.children:
-            self.transform_node(child, root)
-
     def from_records(self, records, root):
-        tree = gff.GFFTreeNode.from_records(records)
-        return self.from_tree(tree, root)
+        children_of = defaultdict(list)
+        orphans = []
+
+        # Go through every record and transform it into an annotation Model
+        # e.g. gff record -> Gene instance
+        for record in records:
+            try:
+                handler = self._find_handler(record)
+            except HandlerNotFound:
+                log.debug("Couldn't find handler for {}".format(record))
+            else:
+                node = handler.transformer(record)
+
+                ID = handler.ID(record)
+                parent_ID = handler.parent_ID(record)
+                x = ID, node
+
+                if parent_ID:
+                    children_of[parent_ID].append(x)
+                else:
+                    orphans.append(x)
+
+        # We make a second pass to link the nodes into a tree.
+        # We make two passes because we can't guarantee that a parent is defined
+        # before it's children (GFF files are frequently a mess).
+        #
+        # TODO consider requiring that parents are defined before children
+        #      for the sake of efficiency, and provide an alternative to fix the GFF
+        #      file, or a less efficient version
+
+        def link_children(ID, node):
+            for child_ID, child in children_of[ID]:
+                child.parent = node
+                link_children(child_ID, child)
+
+        for ID, orphan in orphans:
+            link_children(ID, orphan)
+            orphan.parent = root
+            
 
     def from_file(self, path, root):
         with open(path) as fh:

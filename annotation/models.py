@@ -193,22 +193,33 @@ def make_introns(transcript):
 def transcript_post_transform(transcript, node):
     make_introns(transcript)
 
-reference_handler = Handler(gff_types.reference_types, Reference.from_GFF)
 
-gene_handler = Handler(gff_types.gene_types, Gene.from_GFF)
+class ReferenceHandler(Handler):
+    transformer = Reference.from_GFF
 
-transcript_handler = Handler(gff_types.transcript_types, Transcript.from_GFF,
-                             transcript_post_transform)
 
-exon_handler = Handler(gff_types.exon_types, Exon.from_GFF)
+class GeneHandler(Handler):
+    transformer = Gene.from_GFF
+
+    @staticmethod
+    def parent_ID(record):
+        return Handler.parent_ID(record) or record.seqid
+
+
+class TranscriptHandler(Handler):
+    transformer = Transcript.from_GFF
+
+
+class ExonHandler(Handler):
+    transformer = Exon.from_GFF
+
 
 default_handlers = [
-    reference_handler,
-    gene_handler,
-    transcript_handler,
-    exon_handler,
+    ReferenceHandler(gff_types.references),
+    GeneHandler(gff_types.genes),
+    TranscriptHandler(gff_types.transcripts),
+    ExonHandler(gff_types.exons),
 ]
-
 default_builder = GFFBuilder(default_handlers)
         
 
