@@ -6,7 +6,6 @@ from more_itertools import pairwise
 import sequence_utils
 
 from annotation import sequences
-from annotation.builders.gff import DefaultGFFBuilder
 
 
 __version__ = '2.0.0'
@@ -59,29 +58,20 @@ class PositionHelpers(object):
 # TODO Region should have a reference
 class Region(Interval, PositionHelpers, sequences.RegionSequencesMixin): pass
 
-class Reference(TreeNode, sequences.ReferenceSequencesMixin):
+class Reference(sequences.ReferenceSequencesMixin):
     '''Model representing a reference feature, e.g. a chromosome.'''
 
-    def __init__(self, name, size):
+    def __init__(self, ID, size):
         super(Reference, self).__init__()
-        self.name = name
+        self.ID = ID
         self.size = size
 
-    @classmethod
-    def from_GFF(cls, record):
-        return cls(record.ID, record.end)
 
-
-class Gene(Region, TreeNode):
+class Gene(Region):
     '''Model representing a gene feature.'''
 
     def __init__(self, strand):
-        TreeNode.__init__(self)
         self.strand = strand
-
-    @classmethod
-    def from_GFF(cls, record):
-        return cls(record.strand)
 
     @property
     def start(self):
@@ -92,10 +82,9 @@ class Gene(Region, TreeNode):
         return max(t.end for t in self.transcripts)
 
 
-class Intron(Region, TreeNode):
+class Intron(Region):
 
     def __init__(self, start, end, transcript):
-        TreeNode.__init__(self)
         Region.__init__(self, start, end)
         self.transcript = transcript
 
@@ -119,13 +108,9 @@ class Intron(Region, TreeNode):
         return 'Intron({}, {}, {})'.format(self.start, self.end, self.transcript)
 
 
-class Transcript(TreeNode, sequences.TranscriptSequencesMixin):
+class Transcript(sequences.TranscriptSequencesMixin):
 
     Intron = Intron
-
-    @classmethod
-    def from_GFF(cls, record):
-        return cls()
 
     @property
     def strand(self):
@@ -178,17 +163,12 @@ class Transcript(TreeNode, sequences.TranscriptSequencesMixin):
             l += exon.length
 
 
-class Exon(Region, TreeNode):
+class Exon(Region):
 
     def __init__(self, start, end):
-        TreeNode.__init__(self)
         Region.__init__(self, start, end)
         self.start = start
         self.end = end
-
-    @classmethod
-    def from_GFF(cls, record):
-        return cls(record.start, record.end)
 
     @property
     def strand(self):
@@ -197,21 +177,3 @@ class Exon(Region, TreeNode):
     @property
     def reference(self):
         return self.transcript.gene.reference
-
-
-class Annotation(TreeNode):
-    builder = DefaultGFFBuilder(Reference.from_GFF, Gene.from_GFF,
-                                Transcript.from_GFF, Exon.from_GFF)
-        
-    @classmethod
-    def _build_from(cls, build, records, *args, **kwargs):
-        anno = cls(*args, **kwargs)
-        return build(records, root=anno)
-        
-    @classmethod
-    def from_GFF_records(cls, records, *args, **kwargs):
-        return cls._build_from(cls.builder.from_records, records, *args, **kwargs)
-
-    @classmethod
-    def from_GFF_file(cls, path, *args, **kwargs):
-        return cls._build_from(cls.builder.from_file, path, *args, **kwargs)

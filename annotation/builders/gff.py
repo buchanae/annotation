@@ -2,9 +2,9 @@ from __future__ import absolute_import
 
 import logging
 
-from gff import GFF
+import gff
 
-from annotation.builders.core import Builder, HandlerBase
+from annotation.builders.core import Builder, Linker
 
 
 REFERENCE_TYPES = [
@@ -39,17 +39,17 @@ EXON_TYPES = [
 log = logging.getLogger('annotation.builders.gff')
 
 
-
 _multiple_parents_error_msg = "A record with multiple parents was found. Currently this library doesn't know how to handle that. Try using the MultipleParentsGeneHandler."
 
 class MultipleParentsError(Exception):
     def __init__(self):
         super(MultipleParentsError, self).__init__(_multiple_parents_error_msg)
 
+class GFF(gff.GFF):
 
-class GFFHandlerBase(HandlerBase):
-    def parent_ID(self, record):
-        parent_IDs = record.parent_IDs
+    @property
+    def parent_ID(self):
+        parent_IDs = self.parent_IDs
 
         if parent_IDs:
             if len(parent_IDs) > 1:
@@ -60,53 +60,26 @@ class GFFHandlerBase(HandlerBase):
                 return parent_IDs[0]
 
 
-class GeneHandlerBase(GFFHandlerBase):
-    def parent_ID(self, record):
-        # Sometimes gene records don't explicity set a "Parent" attribute
-        # for their reference, so fall back to the seq ID in that case.
-        parent_ID = super(GeneHandlerBase, self).parent_ID(record)
-        return parent_ID or record.seqid
+#class Annotation:
+    #Transcript = CustomTranscript
+    
+    # Define the relationships between models
+    #parent_child('Gene.transcripts', 'Transcript.gene')
 
 
-class GFFBuilder(Builder):
+#class AnnotationWithProteins:
+    #Protein = Protein
+    #parent_child('Transcript.proteins', 'Protein.transcript')
 
-    from_records = Builder.build
+# OR
 
-    def from_file(self, path, root=None):
-        with open(path) as fh:
-            records = GFF.from_stream(fh)
-            return self.from_records(records, root)
+# Begging for name conflicts
+#annotation.model(CustomTranscript, name='Transcript')
+#annotation.model(Protein)
 
+#annotation.parent_child('Gene.transcripts', 'Transcript.gene')
 
-class DefaultGFFBuilder(GFFBuilder):
-
-    def __init__(self, Reference, Gene, Transcript, Exon):
-
-        # Define copies of our GFF feature type matchers
-        self.reference_types = list(REFERENCE_TYPES)
-        self.gene_types = list(GENE_TYPES)
-        self.transcript_types = list(TRANSCRIPT_TYPES)
-        self.exon_types = list(EXON_TYPES)
-
-        # A couple helpers, for brevity
-        make = GFFHandlerBase.make
-        gene_make = GeneHandlerBase.make
-
-        # Make our handler classes
-        self.ReferenceHandler = make('ReferenceHandler', Reference)
-        self.GeneHandler = gene_make('GeneHandler', Gene)
-        self.TranscriptHandler = make('TranscriptHandler', Transcript)
-        self.ExonHandler = make('ExonHandler', Exon)
-
-        # And now instances of those handler classes
-        self.reference_handler = self.ReferenceHandler(self.reference_types)
-        self.gene_handler = self.GeneHandler(self.gene_types)
-        self.transcript_handler = self.TranscriptHandler(self.transcript_types)
-        self.exon_handler = self.ExonHandler(self.exon_types)
-
-        super(DefaultGFFBuilder, self).__init__([
-            self.reference_handler,
-            self.gene_handler,
-            self.transcript_handler,
-            self.exon_handler,
-        ])
+#linker = Linker()
+#linker.add_pattern('reference')
+#linker.add_pattern('gene')
+#linker.add_pattern('transcript')
