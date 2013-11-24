@@ -52,7 +52,16 @@ class Gene(bases.Gene):
     def from_GFF(cls, record):
         return cls(record.ID, record.strand)
 
+    def GFF_reference_ID(self, record):
+        return record.parent_ID or record.seqid
 
-class Transcript(bases.Transcript, sequences.TranscriptSequencesMixin): pass
 
-class Exon(bases.Exon): pass
+class Transcript(bases.Transcript, sequences.TranscriptSequencesMixin):
+    @classmethod
+    def from_GFF(cls, record):
+        return cls(record.ID)
+
+class Exon(bases.Exon):
+    @classmethod
+    def from_GFF(cls, record):
+        return cls(record.start, record.end)

@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 
-from collections import defaultdict
+from collections import defaultdict, MutableMapping
 import logging
 import re
 
@@ -68,44 +68,80 @@ class Builder(object):
             yield node
 
 
+class AnnotationBuilder(object):
+    Builder = Builder
+
+    def __init__(self, Annotation):
+        self.builder = self.Builder()
+        self.Annotation = Annotation
+
+
 class ParentNotFound(Exception): pass
 
 
+class _LinkerIndex(MutableMapping):
+    def __init__(self, *args, **kwargs):
+        self.store = {}
+        self.update(dict(*args, **kwargs))
+
+    def __getitem__(self, key):
+        try:
+            return self.store[key]
+        except KeyError:
+            raise ParentNotFound()
+
+    def __setitem__(self, key, value):
+        self.store[key] = value
+
+    def __delitem__(self, key):
+        del self.store[key]
+
+    def __iter__(self):
+        return iter(self.store)
+
+    def __len__(self):
+        return len(self.store)
+
+
 class Linker(Handler):
+
+    _ParentIndex = _LinkerIndex
+
     def __init__(self):
-        self.patterns = []
-        self.parents_by_ID = {}
-        self.orphans = []
-
-    def add_pattern(self, parent_attr='parent', parent_ID_attr=None):
-        if not parent_ID_attr:
-            parent_ID_attr = parent_attr + '_ID'
-        self.patterns.append((parent_attr, parent_ID_attr))
-
-    def _link(self, node, record):
-        for parent_attr, parent_ID_attr in self.patterns:
-            parent_ID = getattr(node, parent_ID_attr, None)
-            if parent_ID:
-                try:
-                    parent = self.parents_by_ID[parent_ID]
-                except KeyError:
-                    orphan = node, record
-                    self.orphans.append(orphan)
-                else:
-                    setattr(node, parent_attr, parent)
+        self._index = self._ParentIndex()
+        self._orphans = []
 
     def _get_ID(self, node, record):
-        return node.ID
+        try:
+            return node.ID
+        except AttributeError:
+            pass
+
+    def _get_parent_ID(self, node, record):
+        try:
+            return node.parent_ID
+        except AttributeError:
+            pass
+
+    def _link(self, node, record):
+        parent_ID = self._get_parent_ID(node, record)
+        if parent_ID:
+            parent = self._index[parent_ID]
+            node.parent = parent
 
     def post_transform(self, node, record):
         ID = self._get_ID(node, record)
         if ID:
-            self.parents_by_ID[ID] = node
+            self._index[ID] = node
 
-        self._link(node, record)
+        try:
+            self._link(node, record)
+        except ParentNotFound:
+            orphan = node, record
+            self._orphans.append(orphan)
 
     def finalize(self):
-        for node, record in self.orphans:
+        for node, record in self._orphans:
             try:
                 self._link(node, record)
             except ParentNotFound:

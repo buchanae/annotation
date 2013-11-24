@@ -71,14 +71,15 @@ class Transcript(helpers.TranscriptPositions):
 
     Intron = Intron
 
-    def __init__(self):
+    def __init__(self, ID):
+        self.ID = ID
         self._introns = None
         self.gene = None
         self._exons = []
 
     # TODO repr or str?
     def __repr__(self):
-        return 'Transcript({}, {})'.format(self.gene, self.exon)
+        return 'Transcript({}, {})'.format(self.gene, self.exons)
 
     @property
     def strand(self):
