@@ -6,6 +6,7 @@ from more_itertools import pairwise
 import sequence_utils
 
 from annotation import sequences
+from annotation.builders.gff import DefaultGFFBuilder
 
 
 __version__ = '2.0.0'
@@ -58,6 +59,7 @@ class PositionHelpers(object):
 # TODO Region should have a reference
 class Region(Interval, PositionHelpers, sequences.RegionSequencesMixin): pass
 
+
 class Reference(sequences.ReferenceSequencesMixin):
     '''Model representing a reference feature, e.g. a chromosome.'''
 
@@ -66,12 +68,29 @@ class Reference(sequences.ReferenceSequencesMixin):
         self.ID = ID
         self.size = size
 
+    def __repr__(self):
+        tpl = 'Reference({}, {})'
+        return tpl.format(self.ID, self.size)
+
+    @classmethod
+    def from_GFF(cls, record):
+        return cls(record.ID, record.end)
+
 
 class Gene(Region):
     '''Model representing a gene feature.'''
 
-    def __init__(self, strand):
+    def __init__(self, ID, strand):
+        self.ID = ID
         self.strand = strand
+
+    def __repr__(self):
+        tpl = 'Gene({}, {})'
+        return tpl.format(self.ID, self.strand)
+
+    @classmethod
+    def from_GFF(cls, record):
+        return cls(record.ID, record.strand)
 
     @property
     def start(self):
@@ -177,3 +196,19 @@ class Exon(Region):
     @property
     def reference(self):
         return self.transcript.gene.reference
+
+
+class Annotation(object):
+    Reference = Reference
+    Gene = Gene
+    Transcript = Transcript
+    Exon = Exon
+
+    GFFBuilder = DefaultGFFBuilder
+
+    def __init__(self):
+        self.gff_builder = self.GFFBuilder(self)
+
+    @classmethod
+    def from_GFF_file(cls, fh):
+        return cls().gff_builder.from_file(fh)

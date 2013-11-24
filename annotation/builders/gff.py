@@ -4,7 +4,7 @@ import logging
 
 import gff
 
-from annotation.builders.core import Builder, Linker
+from annotation.builders.core import Builder, Handler, Linker
 
 
 REFERENCE_TYPES = [
@@ -60,26 +60,49 @@ class GFF(gff.GFF):
                 return parent_IDs[0]
 
 
-#class Annotation:
-    #Transcript = CustomTranscript
-    
-    # Define the relationships between models
-    #parent_child('Gene.transcripts', 'Transcript.gene')
+class Decoder(Handler):
+    def __init__(self, decode_fn, types=None):
+        self.decode_fn = decode_fn
+        self.types = types
+
+    def transform(self, record):
+        if record.type in self.types:
+            return self.decode_fn(record)
 
 
-#class AnnotationWithProteins:
-    #Protein = Protein
-    #parent_child('Transcript.proteins', 'Protein.transcript')
+class AnnotationBuilder(object):
+    Builder = Builder
 
-# OR
+    def __init__(self, Annotation):
+        self.builder = self.Builder()
+        self.Annotation = Annotation
 
-# Begging for name conflicts
-#annotation.model(CustomTranscript, name='Transcript')
-#annotation.model(Protein)
 
-#annotation.parent_child('Gene.transcripts', 'Transcript.gene')
+class GFFBuilder(AnnotationBuilder):
+    GFF = GFF
 
-#linker = Linker()
-#linker.add_pattern('reference')
-#linker.add_pattern('gene')
-#linker.add_pattern('transcript')
+    def from_file(self, fh):
+        records = self.GFF.from_stream(fh)
+        return self.builder.build(records)
+
+
+class DefaultGFFBuilder(GFFBuilder):
+    Reference_types = REFERENCE_TYPES
+    Gene_types = GENE_TYPES
+
+    def __init__(self, Annotation):
+        super(DefaultGFFBuilder, self).__init__(Annotation)
+
+        self.reference_decoder = Decoder(Annotation.Reference.from_GFF,
+                                         types=self.Reference_types)
+
+        self.gene_decoder = Decoder(Annotation.Gene.from_GFF, types=self.Gene_types)
+
+        self.linker = Linker()
+        self.linker.add_pattern('reference')
+
+        self.builder.handlers.extend([
+            self.reference_decoder,
+            self.gene_decoder,
+            self.linker,
+        ])
