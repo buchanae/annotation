@@ -45,19 +45,7 @@ class MultipleParentsError(Exception):
     def __init__(self):
         super(MultipleParentsError, self).__init__(_multiple_parents_error_msg)
 
-class GFF(gff.GFF):
-
-    @property
-    def parent_ID(self):
-        parent_IDs = self.parent_IDs
-
-        if parent_IDs:
-            if len(parent_IDs) > 1:
-                # Note: this library doesn't yet know how to handle multiple parents.
-                #       We raise an exception to ensure the user knows that.
-                raise MultipleParentsError()
-            else:
-                return parent_IDs[0]
+# TODO handle multipe parents when linking
 
 
 class Decoder(Handler):
@@ -79,7 +67,7 @@ class AnnotationBuilder(object):
 
 
 class GFFBuilder(AnnotationBuilder):
-    GFF = GFF
+    GFF = gff.GFF
 
     def from_file(self, fh):
         records = self.GFF.from_stream(fh)
