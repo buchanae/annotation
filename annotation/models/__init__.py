@@ -1,7 +1,6 @@
 from __future__ import absolute_import
 
 from annotation import sequences
-from annotation.builders.gff import DefaultGFFBuilder
 from annotation.models import bases
 
 
@@ -57,18 +56,3 @@ class Gene(bases.Gene):
 class Transcript(bases.Transcript, sequences.TranscriptSequencesMixin): pass
 
 class Exon(bases.Exon): pass
-
-class Annotation(object):
-    Reference = Reference
-    Gene = Gene
-    Transcript = Transcript
-    Exon = Exon
-
-    GFFBuilder = DefaultGFFBuilder
-
-    def __init__(self):
-        self.gff_builder = self.GFFBuilder(self)
-
-    @classmethod
-    def from_GFF_file(cls, fh):
-        return cls().gff_builder.from_file(fh)
