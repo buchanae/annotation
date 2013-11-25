@@ -2,8 +2,6 @@ from __future__ import absolute_import
 
 import logging
 
-import gff
-
 from annotation.builders.core import AnnotationBuilder, Handler, Linker
 
 
@@ -58,14 +56,6 @@ class Decoder(Handler):
             return self.decode_fn(record)
 
 
-class GFFBuilder(AnnotationBuilder):
-    GFF = gff.GFF
-
-    def from_file(self, fh):
-        records = self.GFF.from_stream(fh)
-        return self.builder.build(records)
-
-
 class Rule(object):
     def __init__(self, cls, parent_attr):
         self.cls = cls
@@ -99,6 +89,8 @@ class GFFLinker(Linker):
         super(GFFLinker, self).__init__()
         self.rules = rules or []
 
+    # TODO Could have a linker per rule, instead of a linker with many rules
+    #      might fit better with inheritance and reuse
     def _link(self, node, record):
         for rule in self.rules:
             if rule.match(node, record):
@@ -111,7 +103,8 @@ class GFFLinker(Linker):
 # TODO GFFBuilder name conflicts with core.Builder since it's not a subclass
 class GFFBuilderError(Exception): pass
 
-class DefaultGFFBuilder(GFFBuilder):
+
+class DefaultGFFBuilder(AnnotationBuilder):
 
     Reference_types = REFERENCE_TYPES
     Gene_types = GENE_TYPES
@@ -120,6 +113,9 @@ class DefaultGFFBuilder(GFFBuilder):
 
     Decoder = Decoder
     Linker = GFFLinker
+
+    def from_GFF(self, records):
+        return self.builder.build(records)
 
     def _register_decoder(self, name):
         """A helper function for registering decoders."""

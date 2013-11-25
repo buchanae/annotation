@@ -15,7 +15,7 @@ class Handler(object):
     def post_transform(self, obj, record):
         raise NotImplementedError()
 
-    def finalize(self, obj, record):
+    def finalize(self):
         raise NotImplementedError()
 
 
@@ -33,7 +33,7 @@ class Builder(object):
             except NotImplementedError:
                 pass
 
-        log.debug("Couldn't find handler for {}".format(record))
+        log.debug("Couldn't find transform for {}".format(record))
 
     def post_transform(self, node, record):
         for handler in self.handlers:
@@ -42,10 +42,10 @@ class Builder(object):
             except NotImplementedError:
                 pass
 
-    def finalize(self, node, record):
+    def finalize(self):
         for handler in self.handlers:
             try:
-                handler.finalize(node, record)
+                handler.finalize()
             except NotImplementedError:
                 pass
 
@@ -56,16 +56,8 @@ class Builder(object):
             if node:
                 self.post_transform(node, record)
                 yield node
-        
-    def build_and_finalize(self, records):
-        nodes_records = []
 
-        for node in self.iterbuild(records):
-            nodes_records.append((node, record))
-
-        for node, record in nodes_records:
-            self.finalize(node, record)
-            yield node
+        self.finalize()
 
 
 class AnnotationBuilder(object):
@@ -76,7 +68,9 @@ class AnnotationBuilder(object):
         self.Annotation = Annotation
 
 
-class ParentNotFound(Exception): pass
+class ParentNotFound(Exception):
+    def __init__(self, parent_ID):
+        self.parent_ID = parent_ID
 
 
 class _LinkerIndex(MutableMapping):
@@ -88,7 +82,7 @@ class _LinkerIndex(MutableMapping):
         try:
             return self.store[key]
         except KeyError:
-            raise ParentNotFound()
+            raise ParentNotFound(key)
 
     def __setitem__(self, key, value):
         self.store[key] = value
@@ -109,7 +103,7 @@ class Linker(Handler):
 
     def __init__(self):
         self._index = self._ParentIndex()
-        self._orphans = []
+        self._orphans = defaultdict(list)
 
     def _get_ID(self, node, record):
         try:
@@ -134,16 +128,21 @@ class Linker(Handler):
         if ID:
             self._index[ID] = node
 
+        # Resolve any orphans that were looking for this parent record
+        try:
+            orphans = self._orphans.pop(ID)
+        except KeyError:
+            pass
+        else:
+            for node, record in orphans:
+                self._link(node, record)
+
         try:
             self._link(node, record)
-        except ParentNotFound:
+        except ParentNotFound as e:
             orphan = node, record
-            self._orphans.append(orphan)
+            self._orphans[e.parent_ID].append(orphan)
 
-    def finalize(self):
-        for node, record in self._orphans:
-            try:
-                self._link(node, record)
-            except ParentNotFound:
-                # TODO error message
-                log.warning('Orphan')
+    def _resolve_orphans(self, orphans):
+        for node, record in orphans:
+            log.warning('Orphan: {}'.format(node))

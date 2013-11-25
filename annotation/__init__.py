@@ -16,5 +16,5 @@ class Annotation(object):
         self.gff_builder = self.GFFBuilder(self)
 
     @classmethod
-    def from_GFF_file(cls, fh):
-        return cls().gff_builder.from_file(fh)
+    def from_GFF(cls, records):
+        return cls().gff_builder.from_GFF(records)
