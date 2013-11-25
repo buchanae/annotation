@@ -38,12 +38,6 @@ EXON_TYPES = [
 log = logging.getLogger('annotation.builders.gff')
 
 
-_multiple_parents_error_msg = "A record with multiple parents was found. Currently this library doesn't know how to handle that. Try using FirstParentLinker."
-
-class MultipleParentsError(Exception):
-    def __init__(self):
-        super(MultipleParentsError, self).__init__(_multiple_parents_error_msg)
-
 # TODO handle multipe parents when linking
 
 
@@ -69,15 +63,12 @@ class GFFLinker(Linker):
         return node.ID
 
     def _get_parent_ID(self, node, record):
-        try:
-            model_method_name = 'GFF_' + self.parent_attr + '_ID'
-            model_method = getattr(node, model_method_name, None)
-            if model_method:
-                return model_method(record)
-            else:
-                return record.parent_ID
-        except gff.MultipleParents:
-            raise MultipleParentsError()
+        model_method_name = 'GFF_' + self.parent_attr + '_ID'
+        model_method = getattr(node, model_method_name, None)
+        if model_method:
+            return model_method(record)
+        else:
+            return record.parent_ID
 
     def _link(self, child, parent):
         setattr(child, self.parent_attr, parent)
@@ -89,14 +80,6 @@ class GFFLinker(Linker):
     def _try_link(self, node, record):
         if isinstance(node, self.child_type):
             super(GFFLinker, self)._try_link(node, record)
-
-
-class FirstParentLinker(GFFLinker):
-    def _get_parent_ID(self, node, record):
-        try:
-            return super(FirstParentLinker, self)._get_parent_ID(node, record)
-        except MultipleParentsError:
-            return record.parent_IDs[0]
 
 
 class GFFBuilderError(Exception): pass
