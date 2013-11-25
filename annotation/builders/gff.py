@@ -57,21 +57,21 @@ class GFFLinker(Linker):
         super(GFFLinker, self).__init__()
         self.parent_type = parent_type
         self.child_type = child_type
-        self.parent_attr = parent_attr
+        self._parent_attr = parent_attr
+        self._parent_ID_method_name = 'GFF_' + parent_attr + '_ID'
 
     def _get_ID(self, node, record):
         return node.ID
 
     def _get_parent_ID(self, node, record):
-        model_method_name = 'GFF_' + self.parent_attr + '_ID'
-        model_method = getattr(node, model_method_name, None)
-        if model_method:
-            return model_method(record)
+        method = getattr(node, self._parent_ID_method_name, None)
+        if method:
+            return method(record)
         else:
             return record.parent_ID
 
     def _link(self, child, parent):
-        setattr(child, self.parent_attr, parent)
+        setattr(child, self._parent_attr, parent)
 
     def _index_parent(self, node, record):
         if isinstance(node, self.parent_type):
