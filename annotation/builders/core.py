@@ -9,36 +9,35 @@ class Builder(object):
     def __init__(self, handlers=None):
         self.handlers = handlers or []
 
-    def _invoke(self, handler, name, *args, **kwargs):
-        func = getattr(handler, name, None)
-        if func:
-            return func(*args, **kwargs)
-        
-    def transform(self, record):
-        for handler in self.handlers:
-            node = self._invoke(handler, 'transform', record)
-            if node:
-                return node
+    def _inspect_handlers(self):
+        all_hook_handlers = []
+        hooks = ['transform', 'post_transform', 'finalize']
 
-        log.debug("Couldn't find transform for {}".format(record))
+        for hook in hooks:
+            hook_handlers = []
+            all_hook_handlers.append(hook_handlers)
 
-    def post_transform(self, node, record):
-        for handler in self.handlers:
-            self._invoke(handler, 'post_transform', node, record)
+            for handler in self.handlers:
+                func = getattr(handler, hook, None)
+                if func:
+                    hook_handlers.append(func)
 
-    def finalize(self):
-        for handler in self.handlers:
-            self._invoke(handler, 'finalize')
+        return all_hook_handlers
 
     def build(self, records):
+        transforms, post_transforms, finalizes = self._inspect_handlers()
+
         # Go through every record and transform it into a node
         for record in records:
-            node = self.transform(record)
-            if node:
-                self.post_transform(node, record)
-                yield node
+            for transform in transforms:
+                node = transform(record)
+                if node:
+                    for post_transform in post_transforms:
+                        post_transform(node, record)
+                    yield node
 
-        self.finalize()
+        for finalize in finalizes:
+            finalize()
 
 
 # TODO AnnotationBuilder name conflicts with core.Builder since it's not a subclass
