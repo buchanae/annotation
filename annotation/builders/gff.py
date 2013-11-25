@@ -79,7 +79,7 @@ class Rule(object):
             model_method_name = 'GFF_' + self.parent_attr + '_ID'
             model_method = getattr(node, model_method_name, None)
             if model_method:
-                model_method(record)
+                return model_method(record)
             else:
                 return record.parent_ID
         except gff.MultipleParents:

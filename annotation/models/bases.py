@@ -17,6 +17,7 @@ class Reference(object):
         super(Reference, self).__init__()
         self.ID = ID
         self.size = size
+        self.genes = set()
 
     def __repr__(self):
         tpl = 'Reference({}, {})'
@@ -30,7 +31,7 @@ class Gene(Region):
         self.ID = ID
         self.strand = strand
         self.reference = None
-        self.transcripts = []
+        self.transcripts = set()
 
     def __repr__(self):
         tpl = 'Gene({}, {})'
@@ -75,11 +76,11 @@ class Transcript(helpers.TranscriptPositions):
         self.ID = ID
         self._introns = None
         self.gene = None
-        self._exons = []
+        self._exons = set()
 
     # TODO repr or str?
     def __repr__(self):
-        return 'Transcript({}, {})'.format(self.gene, self.exons)
+        return 'Transcript({})'.format(self.gene)
 
     @property
     def strand(self):
