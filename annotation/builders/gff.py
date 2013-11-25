@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 import logging
 
-from annotation.builders.core import AnnotationBuilder, Handler, Linker
+from annotation.builders.core import AnnotationBuilder, Linker
 
 
 REFERENCE_TYPES = [
@@ -37,7 +37,7 @@ EXON_TYPES = [
 log = logging.getLogger('annotation.builders.gff')
 
 
-_multiple_parents_error_msg = "A record with multiple parents was found. Currently this library doesn't know how to handle that. Try using FirstParentRule."
+_multiple_parents_error_msg = "A record with multiple parents was found. Currently this library doesn't know how to handle that. Try using FirstParentLinker."
 
 class MultipleParentsError(Exception):
     def __init__(self):
@@ -46,7 +46,7 @@ class MultipleParentsError(Exception):
 # TODO handle multipe parents when linking
 
 
-class Decoder(Handler):
+class Decoder(object):
     def __init__(self, decode_fn, types=None):
         self.decode_fn = decode_fn
         self.types = types
@@ -56,15 +56,18 @@ class Decoder(Handler):
             return self.decode_fn(record)
 
 
-class Rule(object):
-    def __init__(self, cls, parent_attr):
-        self.cls = cls
+class GFFLinker(Linker):
+
+    def __init__(self, parent_type, child_type, parent_attr):
+        super(GFFLinker, self).__init__()
+        self.parent_type = parent_type
+        self.child_type = child_type
         self.parent_attr = parent_attr
 
-    def match(self, node, record):
-        return isinstance(node, self.cls)
+    def _get_ID(self, node, record):
+        return node.ID
 
-    def get_parent_ID(self, node, record):
+    def _get_parent_ID(self, node, record):
         try:
             model_method_name = 'GFF_' + self.parent_attr + '_ID'
             model_method = getattr(node, model_method_name, None)
@@ -75,37 +78,32 @@ class Rule(object):
         except gff.MultipleParents:
             raise MultipleParentsError()
 
+    def _link(self, child, parent):
+        setattr(child, self.parent_attr, parent)
 
-class FirstParentRule(Rule):
-    def get_parent_ID(self, node, record):
+    def _index_parent(self, node, record):
+        if isinstance(node, self.parent_type):
+            super(GFFLinker, self)._index_parent(node, record)
+
+    def _try_link(self, node, record):
+        if isinstance(node, self.child_type):
+            super(GFFLinker, self)._try_link(node, record)
+
+
+class FirstParentLinker(GFFLinker):
+    def _get_parent_ID(self, node, record):
         try:
-            return super(FirstParentRule, self).get_parent_ID(node, record)
+            return super(FirstParentLinker, self)._get_parent_ID(node, record)
         except MultipleParentsError:
             return record.parent_IDs[0]
 
 
-class GFFLinker(Linker):
-    def __init__(self, rules=None):
-        super(GFFLinker, self).__init__()
-        self.rules = rules or []
-
-    # TODO Could have a linker per rule, instead of a linker with many rules
-    #      might fit better with inheritance and reuse
-    def _link(self, node, record):
-        for rule in self.rules:
-            if rule.match(node, record):
-                parent_ID = rule.get_parent_ID(node, record)
-                if parent_ID:
-                    parent = self._index[parent_ID]
-                    setattr(node, rule.parent_attr, parent)
-
-
-# TODO GFFBuilder name conflicts with core.Builder since it's not a subclass
 class GFFBuilderError(Exception): pass
 
 
 class DefaultGFFBuilder(AnnotationBuilder):
 
+    # TODO consider moving this to a defaultdict(list)
     Reference_types = REFERENCE_TYPES
     Gene_types = GENE_TYPES
     Transcript_types = TRANSCRIPT_TYPES
@@ -114,18 +112,30 @@ class DefaultGFFBuilder(AnnotationBuilder):
     Decoder = Decoder
     Linker = GFFLinker
 
-    def from_GFF(self, records):
-        return self.builder.build(records)
+    def __init__(self, Annotation):
+        super(DefaultGFFBuilder, self).__init__(Annotation)
 
-    def _register_decoder(self, name):
-        """A helper function for registering decoders."""
+        self._register_decoder('Reference')
+        self._register_decoder('Gene')
+        self._register_decoder('Transcript')
+        self._register_decoder('Exon')
 
+        self._register_linker('Reference', 'Gene')
+        self._register_linker('Gene', 'Transcript')
+        self._register_linker('Transcript', 'Exon')
+
+    def _get_feature_class(self, name):
         try:
-            feature_cls = getattr(self.Annotation, name)
+            return getattr(self.Annotation, name)
         except AttributeError:
             tpl = "Annotation doesn't have a {} type"
             msg = tpl.format(name)
             raise GFFBuilderError(msg)
+
+    def _register_decoder(self, name):
+        """A helper function for registering decoders."""
+
+        feature_cls = self._get_feature_class(name)
 
         try:
             from_GFF_func = getattr(feature_cls, 'from_GFF')
@@ -143,19 +153,19 @@ class DefaultGFFBuilder(AnnotationBuilder):
 
         self.builder.handlers.append(decoder)
 
-    def __init__(self, Annotation):
-        super(DefaultGFFBuilder, self).__init__(Annotation)
+    def _register_linker(self, parent_name, child_name):
+        parent_feature_cls = self._get_feature_class(parent_name)
+        child_feature_cls = self._get_feature_class(child_name)
 
-        self._register_decoder('Reference')
-        self._register_decoder('Gene')
-        self._register_decoder('Transcript')
-        self._register_decoder('Exon')
+        parent_attr_name = parent_name.lower()
 
-        # TODO add rules as attributes to this class
-        self.linker = self.Linker([
-            Rule(Annotation.Gene, 'reference'),
-            Rule(Annotation.Transcript, 'gene'),
-            Rule(Annotation.Exon, 'transcript'),
-        ])
+        linker = self.Linker(parent_feature_cls, child_feature_cls,
+                             parent_attr_name)
 
-        self.builder.handlers.append(self.linker)
+        linker_name = '{}_{}_linker'.format(parent_name, child_name)
+        setattr(self, linker_name, linker)
+
+        self.builder.handlers.append(linker)
+
+    def from_GFF(self, records):
+        return self.builder.build(records)
