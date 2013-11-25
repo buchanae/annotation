@@ -32,9 +32,13 @@ class Annotation(models.Annotation):
     # TODO this is getting in the way
     #      should from_GFF be an instance method? what if you import multiple times?
     #      importing multiple times could be useful?
+    #      that would mean maintaining a per-annotation relationship index,
+    #      and changing the way model relationships work.
+    #      would probably turn out to be a great change though,
+    #      allowing more power (think annotation.lookup('some-feature-ID'))
+    #      and easier compatiblity with a database.
     @classmethod
     def from_GFF(cls, records):
         anno = cls()
-        for x in anno.gff_builder.from_GFF(records):
-            pass
+        anno.gff_builder.from_GFF(records)
         return anno

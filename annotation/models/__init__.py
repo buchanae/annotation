@@ -1,7 +1,6 @@
 from __future__ import absolute_import
 
-from annotation import sequences
-from annotation.models import bases
+from annotation.models import bases, sequences
 
 
 __version__ = '2.0.0'
@@ -123,6 +122,10 @@ class Transcript(Model, bases.Transcript, sequences.TranscriptSequencesMixin):
     def from_GFF(cls, record):
         return cls(record.ID)
 
+    @property
+    def reference(self):
+        return self.gene.reference
+
 
 class Exon(Model, bases.Exon):
 
@@ -131,3 +134,7 @@ class Exon(Model, bases.Exon):
     @classmethod
     def from_GFF(cls, record):
         return cls(record.start, record.end)
+
+    @property
+    def reference(self):
+        return self.transcript.gene.reference

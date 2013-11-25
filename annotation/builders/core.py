@@ -24,7 +24,7 @@ class Builder(object):
 
         return all_hook_handlers
 
-    def build(self, records):
+    def iterbuild(self, records):
         transforms, post_transforms, finalizes = self._inspect_handlers()
 
         # Go through every record and transform it into a node
@@ -38,6 +38,9 @@ class Builder(object):
 
         for finalize in finalizes:
             finalize()
+
+    def build(self, records):
+        return list(self.iterbuild(records))
 
 
 # TODO AnnotationBuilder name conflicts with core.Builder since it's not a subclass

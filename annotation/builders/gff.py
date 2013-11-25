@@ -137,6 +137,8 @@ class DefaultGFFBuilder(AnnotationBuilder):
 
         self.builder.handlers.append(decoder)
 
+    # TODO linkers hold onto resources after build has completed
+    #      which is inefficient
     def _register_linker(self, parent_name, child_name):
         parent_feature_cls = self._get_feature_class(parent_name)
         child_feature_cls = self._get_feature_class(child_name)
