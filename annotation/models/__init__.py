@@ -88,7 +88,15 @@ class Model(object):
         super(Model, self).__init__(*args, **kwargs)
 
 
+class Annotation(Model):
+    # TODO move to bases
+    def __init__(self):
+        self.references = set()
+
+
 class Reference(Model, bases.Reference, sequences.ReferenceSequencesMixin):
+
+    annotation = Parent(Annotation, related_name='references')
 
     @classmethod
     def from_GFF(cls, record):

@@ -4,7 +4,7 @@ import sequence_utils
 class ReferenceSequencesMixin(object):
     @property
     def sequence(self):
-        return self.annotation.sequences[self.reference.name]
+        return self.annotation.sequences[self.ID]
 
 
 class RegionSequencesMixin(object):
