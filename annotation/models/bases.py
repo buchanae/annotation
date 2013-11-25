@@ -76,7 +76,7 @@ class Transcript(helpers.TranscriptPositions):
         self.ID = ID
         self._introns = None
         self.gene = None
-        self._exons = set()
+        self.exons = helpers.ExonCollection()
 
     # TODO repr or str?
     def __repr__(self):
@@ -86,7 +86,6 @@ class Transcript(helpers.TranscriptPositions):
     def strand(self):
         return self.gene.strand
 
-    # TODO move this sort of stuff to post_transform?
     @property
     def start(self):
         return min(e.start for e in self.exons)
@@ -98,13 +97,6 @@ class Transcript(helpers.TranscriptPositions):
     @property
     def length(self):
         return sum(exon.length for exon in self.exons)
-
-    @property
-    def exons(self):
-        # TODO sorting every time sucks. a lot depends on accessing exons.
-        reverse = self.strand == '-'
-        return sorted(self._exons, key=lambda exon: exon.five_prime,
-                      reverse=reverse)
 
     @property
     def introns(self):

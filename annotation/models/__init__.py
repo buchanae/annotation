@@ -118,7 +118,7 @@ class Transcript(Model, bases.Transcript, sequences.TranscriptSequencesMixin):
 
 class Exon(Model, bases.Exon):
 
-    transcript = Parent(Transcript, related_name='_exons')
+    transcript = Parent(Transcript, related_name='exons')
 
     @classmethod
     def from_GFF(cls, record):
