@@ -2,7 +2,8 @@ from __future__ import absolute_import
 
 import logging
 
-from annotation.builders.core import AnnotationBuilder, Linker
+from annotation.builders.core import AnnotationBuilder
+from annotation.builders.linker import Linker
 
 
 REFERENCE_TYPES = [
