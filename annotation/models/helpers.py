@@ -35,15 +35,22 @@ class ExonCollection(collections.Sequence):
 
     def __init__(self):
         self._exons = []
+        self._dirty = False
+
+    @property
+    def _sorted_exons(self):
+        if self._dirty:
+            sort_key = lambda exon: exon.start
+            self._exons = sorted(self._exons, key=sort_key)
+            self._dirty = False
+        return self._exons
 
     def add(self, exon):
-        print 'add'
+        self._dirty = True
+        self._exons.append(exon)
         # TODO could add collections.MutableSet ABC
         # TODO could check that adding an exon doesn't overlap with existing exons
-        self._exons.append(exon)
-        # TODO could replace this with a bisect search
-        sort_key = lambda exon: exon.start
-        self._exons = sorted(self._exons, key=sort_key)
+        # TODO could implment with a bisect search + insert
 
     def remove(self, exon):
         try:
@@ -55,7 +62,7 @@ class ExonCollection(collections.Sequence):
         return len(self._exons)
 
     def __getitem__(self, key):
-        return self._exons[key]
+        return self._sorted_exons[key]
 
     def __delitem__(self, key):
-        del self._exons[key]
+        del self._sorted_exons[key]
