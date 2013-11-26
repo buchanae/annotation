@@ -10,6 +10,11 @@ from annotation.models import helpers
 class Region(Interval, helpers.StrandedPositions): pass
 
 
+class Annotation(object):
+    def __init__(self):
+        self.references = set()
+
+
 class Reference(object):
     '''Model representing a reference feature, e.g. a chromosome.'''
 

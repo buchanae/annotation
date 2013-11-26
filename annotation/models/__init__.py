@@ -57,10 +57,7 @@ class Model(object):
         super(Model, self).__init__(*args, **kwargs)
 
 
-class Annotation(Model):
-    # TODO move to bases
-    def __init__(self):
-        self.references = set()
+class Annotation(Model, bases.Annotation): pass
 
 
 class Reference(Model, bases.Reference, sequences.ReferenceSequencesMixin):
