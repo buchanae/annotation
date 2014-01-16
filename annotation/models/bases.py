@@ -3,11 +3,20 @@ from __future__ import absolute_import
 from interval.closed import Interval
 from more_itertools import pairwise
 
-from annotation.models import helpers
+from annotation.models import helpers, positions
 
 
 # TODO Region should have a reference?
-class Region(Interval, helpers.StrandedPositions): pass
+class Region(Interval, helpers.StrandedPositions):
+
+    start = positions.GenomicPositionDescriptor('_start')
+    end = positions.GenomicPositionDescriptor('_end')
+
+    # TODO is_reverse? is_reverse_strand? strand == ReverseStrand?
+    @property
+    def reverse_strand(self):
+        # TODO drop strand checking by string? Use values with identity (a la None)?
+        return self.strand == '-'
 
 
 class Annotation(object):
@@ -54,7 +63,8 @@ class Gene(Region):
 class Intron(Region):
 
     def __init__(self, start, end):
-        super(Intron, self).__init__(start, end)
+        self.start = start
+        self.end = end
         self.transcript = None
 
     def __repr__(self):
@@ -110,19 +120,21 @@ class Transcript(helpers.TranscriptPositions):
         return self._introns
 
     def build_introns(self):
+        self._introns = []
+
         for a, b in pairwise(self.exons):
-            if self.strand == '-':
-                intron = self.Intron(b.five_prime + 1, a.three_prime - 1)
-                intron.transcript = self
-            else:
-                intron = self.Intron(a.three_prime + 1, b.five_prime - 1)
+            start = a.end + 1
+            end = b.start - 1
+            intron = self.Intron(start, end)
+            intron.transcript = self
             self._introns.append(intron)
 
 
 class Exon(Region):
 
     def __init__(self, start, end):
-        super(Exon, self).__init__(start, end)
+        self.start = start
+        self.end = end
         self.transcript = None
 
     def __repr__(self):

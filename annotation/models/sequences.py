@@ -22,8 +22,7 @@ class TranscriptSequencesMixin(object):
     @property
     def sequence(self):
         ref_seq = self.reference.sequence
-        reverse = self.strand == '-'
-        return sequence_utils.get_transcript_seq(ref_seq, self.exons, reverse)
+        return sequence_utils.get_transcript_seq(ref_seq, self.exons, self.reverse_strand)
 
     @property
     def orfs(self):
@@ -39,7 +38,7 @@ class TranscriptSequencesMixin(object):
 
             # If this transcript is on the reverse strand,
             # our positions are backwards, so swap them.
-            if self.strand == '-':
+            if self.reverse_strand:
                 start, end = end, start
 
             interval = Interval(start, end)

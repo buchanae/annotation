@@ -6,11 +6,11 @@ class StrandedPositions(object):
 
     @property
     def five_prime(self):
-        return self.end if self.strand == '-' else self.start
+        return self.end if self.reverse_strand else self.start
 
     @property
     def three_prime(self):
-        return self.start if self.strand == '-' else self.end
+        return self.start if self.reverse_strand else self.end
 
 
 class TranscriptPositions(object):
@@ -23,7 +23,7 @@ class TranscriptPositions(object):
         l = 0
         for exon in self.exons:
             if l <= rel <= l + exon.length:
-                if self.strand == '-':
+                if self.reverse_strand:
                     return exon.five_prime - (rel - l - 1)
                 else:
                     return exon.five_prime + (rel - l - 1)
