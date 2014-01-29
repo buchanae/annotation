@@ -3,8 +3,8 @@ from __future__ import absolute_import
 from annotation.models import bases, sequences
 
 
-
 # TODO drop strand and use a boolean "reversed" or "reverse_strand" instead?
+class Region(bases.Region): pass
 
 
 class Parent(object):
