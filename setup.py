@@ -1,4 +1,4 @@
-from distutils.core import setup
+from setuptools import setup, find_packages
 import os
 
 _this_dir = os.path.dirname(__file__)
@@ -13,13 +13,7 @@ setup(
     author='Alex Buchanan',
     author_email='buchanae@gmail.com',
     license='MIT',
-    py_modules=[
-        'annotation.models',
-        'annotation.builders',
-        'annotation.builders.core',
-        'annotation.builders.gff',
-        'annotation.sequences',
-    ],
+    packages=find_packages(),
     dependency_links=[
         'http://github.com/abuchanan/interval/archive/v1.0.0.zip#egg=abuchanan_interval-1.0.0',
         'http://github.com/abuchanan/sequence_utils/archive/v0.2.0.zip#egg=abuchanan_sequence_utils-0.2.0',
