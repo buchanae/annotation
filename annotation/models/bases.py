@@ -92,6 +92,7 @@ class Transcript(helpers.TranscriptPositions):
         self._introns = None
         self.gene = None
         self.exons = helpers.ExonCollection()
+        self.coding_sequence = None
 
     # TODO repr or str?
     def __repr__(self):
@@ -139,6 +140,18 @@ class Exon(Region):
 
     def __repr__(self):
         return 'Exon({}, {}, {})'.format(self.start, self.end, self.transcript)
+
+    @property
+    def strand(self):
+        return self.transcript.strand
+
+
+class CodingSequence(Region):
+
+    def __init__(self, start, end):
+        self.start = start
+        self.end = end
+        self.transcript = None
 
     @property
     def strand(self):

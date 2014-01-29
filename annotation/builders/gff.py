@@ -58,6 +58,61 @@ class Builder(BuilderBase):
         self.add_handler(linker)
 
 
+class CodingSequenceHandler(object):
+
+    class NotResolved(Exception): pass
+
+    def __init__(self, CodingSequence, types, Transcript):
+        self.CodingSequence = CodingSequence
+        self.types = types
+        self.Transcript = Transcript
+        self.transcripts = {}
+        self.deferred = []
+
+    def CodingSequence_from_GFF(self, record):
+        return self.CodingSequence(record.start, record.end)
+
+    def transform(self, record):
+        if record.type in self.types:
+            try:
+                self.resolve(record)
+            except self.NotResolved:
+                self.deferred.append(record)
+
+    def post_transform(self, node, record):
+        if isinstance(node, self.Transcript):
+            self.transcripts[node.ID] = node
+
+            for record in self.deferred:
+                try:
+                    self.resolve(record)
+                    self.deferred.remove(record)
+                except self.NotResolved:
+                    pass
+
+    def resolve(self, record):
+        parent_ID = record.parent_ID
+        try:
+            transcript = self.transcripts[parent_ID]
+        except KeyError:
+            raise self.NotResolved()
+        else:
+            if not transcript.coding_sequence:
+                cds = self.CodingSequence_from_GFF(record)
+                cds.transcript = transcript
+            else:
+                cds = transcript.coding_sequence
+                cds.start = min(cds.start, record.start)
+                cds.end = max(cds.end, record.end)
+
+    def finalize(self):
+        for record in self.deferred:
+            try:
+                self.resolve(record)
+            except self.NotResolved:
+                log.warning('Never resolved: {}'.format(record))
+
+
 class Reader(object):
 
     Reference_types = {
@@ -89,12 +144,16 @@ class Reader(object):
         'pseudogenic_exon',
     }
 
+    CodingSequence_types = {'CDS'}
+
     Reference = models.Reference
     Gene = models.Gene
     Transcript = models.Transcript
     Exon = models.Exon
+    CodingSequence = models.CodingSequence
 
     Builder = Builder
+    CodingSequenceHandler = CodingSequenceHandler
 
     def Reference_from_GFF(self, record):
         return self.Reference(record.ID, record.end)
@@ -121,6 +180,11 @@ class Reader(object):
                            self.GFF_reference_ID)
         builder.add_linker(self.Gene, self.Transcript, 'gene')
         builder.add_linker(self.Transcript, self.Exon, 'transcript')
+
+        cds_handler = self.CodingSequenceHandler(self.CodingSequence,
+                                                 self.CodingSequence_types,
+                                                 self.Transcript)
+        builder.add_handler(cds_handler)
 
     def read(self, records):
         builder = self.Builder()

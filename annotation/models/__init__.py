@@ -85,3 +85,23 @@ class Exon(Model, bases.Exon):
     @property
     def reference(self):
         return self.transcript.gene.reference
+
+
+class CodingSequence(bases.CodingSequence):
+
+    def __init__(self, start, end):
+        self._transcript = None
+        super(CodingSequence, self).__init__(start, end)
+
+    @property
+    def transcript(self):
+        return self._transcript
+
+    @transcript.setter
+    def transcript(self, value):
+        if self._transcript:
+            self._transcript.coding_sequence = None
+
+        if value:
+            self._transcript = value
+            self._transcript.coding_sequence = self
