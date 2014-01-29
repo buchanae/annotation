@@ -30,6 +30,7 @@ class _LinkerIndex(MutableMapping):
         return len(self.store)
 
 
+# TODO ugh, this whole pattern is too confusing
 class Linker(object):
 
     _ParentIndex = _LinkerIndex

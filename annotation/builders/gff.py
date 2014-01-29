@@ -3,6 +3,7 @@ from __future__ import absolute_import
 
 import logging
 
+from annotation import models
 from annotation.builders.core import Builder as BuilderBase
 from annotation.builders.linker import Linker as LinkerBase
 
@@ -10,14 +11,12 @@ from annotation.builders.linker import Linker as LinkerBase
 log = logging.getLogger(__name__)
 
 
-
-
 class Linker(LinkerBase):
 
     def __init__(self, parent_type, child_type, parent_attr,
                  parent_ID_func=None):
 
-        super(GFFLinker, self).__init__()
+        super(Linker, self).__init__()
         self.parent_type = parent_type
         self.child_type = child_type
         self.parent_attr = parent_attr
@@ -37,14 +36,29 @@ class Linker(LinkerBase):
 
     def _index_parent(self, node, record):
         if isinstance(node, self.parent_type):
-            super(GFFLinker, self)._index_parent(node, record)
+            super(Linker, self)._index_parent(node, record)
 
     def _try_link(self, node, record):
         if isinstance(node, self.child_type):
-            super(GFFLinker, self)._try_link(node, record)
+            super(Linker, self)._try_link(node, record)
 
 
-class Importer(object):
+class Builder(BuilderBase):
+
+    Linker = Linker
+
+    def add_decoder(self, decode_fn, types):
+        def fn(record):
+            if record.type in types:
+                return decode_fn(record)
+        self.transform.append(fn)
+
+    def add_linker(self, *args, **kwargs):
+        linker = self.Linker(*args, **kwargs)
+        self.add_handler(linker)
+
+
+class Reader(object):
 
     Reference_types = {
         'reference',
@@ -80,9 +94,6 @@ class Importer(object):
     Transcript = models.Transcript
     Exon = models.Exon
 
-    Decoder = Decoder
-    Linker = Linker
-    ReferenceLinker = ReferenceLinker
     Builder = Builder
 
     def Reference_from_GFF(self, record):
@@ -100,29 +111,20 @@ class Importer(object):
     def GFF_reference_ID(self, feature, record):
         return record.parent_ID or record.seqid
 
-    def _init_builder(self):
+    def _init_builder(self, builder):
+        builder.add_decoder(self.Reference_from_GFF, self.Reference_types)
+        builder.add_decoder(self.Gene_from_GFF, self.Gene_types)
+        builder.add_decoder(self.Transcript_from_GFF, self.Transcript_types)
+        builder.add_decoder(self.Exon_from_GFF, self.Exon_types)
+
+        builder.add_linker(self.Reference, self.Gene, 'reference',
+                           self.GFF_reference_ID)
+        builder.add_linker(self.Gene, self.Transcript, 'gene')
+        builder.add_linker(self.Transcript, self.Exon, 'transcript')
+
+    def read(self, records):
         builder = self.Builder()
-
-        # Helpers
-        def add_decoder(decode_fn, types):
-            def fn(record):
-                if record.type in types:
-                    return decode_fn(record)
-            builder.transform.append(fn)
-
-        def add_linker(*args, **kwargs):
-            linker = self.Linker(*args, **kwargs)
-            builder.inspect_handler(linker)
-
-        # Add handlers to builder
-        add_decoder(self.Reference_from_GFF, self.Reference_types)
-        add_decoder(self.Gene_from_GFF, self.Gene_types)
-        add_decoder(self.Transcript_from_GFF, self.Transcript_types)
-        add_decoder(self.Exon_from_GFF, self.Exon_types)
-
-        add_linker(Reference, Gene, 'reference', self.GFF_reference_ID)
-        add_linker(Gene, Transcript, 'gene')
-        add_linker(Transcript, Exon, 'transcript')
+        self._init_builder(builder)
 
         references = []
         def collect_references(node, record):
@@ -131,9 +133,5 @@ class Importer(object):
 
         builder.post_transform.append(collect_references)
 
-        return references
-
-    def import(self, records):
-        builder, references = self._init_builder()
         builder.build(records)
         return references

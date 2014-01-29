@@ -11,7 +11,7 @@ class Builder(object):
         self.post_transform = []
         self.finalize = []
 
-    def inspect_handler(self, handler):
+    def add_handler(self, handler):
         hooks = ['transform', 'post_transform', 'finalize']
 
         for hook in hooks:
