@@ -1,77 +1,39 @@
+# TODO handle multipe parents when linking
 from __future__ import absolute_import
 
 import logging
 
-from annotation.builders.core import AnnotationBuilder
-from annotation.builders.linker import Linker
+from annotation.builders.core import Builder as BuilderBase
+from annotation.builders.linker import Linker as LinkerBase
 
 
-REFERENCE_TYPES = [
-    'reference',
-    'chromosome',
-    'contig',
-]
-
-GENE_TYPES = [
-    'gene',
-    'pseudogene',
-    'transposable_element_gene',
-]
-
-TRANSCRIPT_TYPES = [
-    'mRNA',
-    'snRNA', 
-    'rRNA',
-    'snoRNA',
-    'mRNA_TE_gene',
-    'miRNA',
-    'tRNA',
-    'ncRNA',
-    'pseudogenic_transcript',
-]
-
-EXON_TYPES = [
-    'exon',
-    'pseudogenic_exon',
-]
-
-log = logging.getLogger('annotation.builders.gff')
+log = logging.getLogger(__name__)
 
 
-# TODO handle multipe parents when linking
 
 
-class Decoder(object):
-    def __init__(self, decode_fn, types=None):
-        self.decode_fn = decode_fn
-        self.types = types
+class Linker(LinkerBase):
 
-    def transform(self, record):
-        if record.type in self.types:
-            return self.decode_fn(record)
+    def __init__(self, parent_type, child_type, parent_attr,
+                 parent_ID_func=None):
 
-
-class GFFLinker(Linker):
-
-    def __init__(self, parent_type, child_type, parent_attr):
         super(GFFLinker, self).__init__()
         self.parent_type = parent_type
         self.child_type = child_type
-        self._parent_attr = parent_attr
-        self._parent_ID_method_name = 'GFF_' + parent_attr + '_ID'
+        self.parent_attr = parent_attr
+        self.parent_ID_func = parent_ID_func
 
     def _get_ID(self, node, record):
         return node.ID
 
     def _get_parent_ID(self, node, record):
-        method = getattr(node, self._parent_ID_method_name, None)
-        if method:
-            return method(record)
+        if self.parent_ID_func:
+            return self.parent_ID_func(node, record)
         else:
             return record.parent_ID
 
     def _link(self, child, parent):
-        setattr(child, self._parent_attr, parent)
+        setattr(child, self.parent_attr, parent)
 
     def _index_parent(self, node, record):
         if isinstance(node, self.parent_type):
@@ -82,76 +44,96 @@ class GFFLinker(Linker):
             super(GFFLinker, self)._try_link(node, record)
 
 
-class GFFBuilderError(Exception): pass
+class Importer(object):
 
+    Reference_types = {
+        'reference',
+        'chromosome',
+        'contig',
+    }
 
-class DefaultGFFBuilder(AnnotationBuilder):
+    Gene_types = {
+        'gene',
+        'pseudogene',
+        'transposable_element_gene',
+    }
 
-    # TODO consider moving this to a defaultdict(list)
-    Reference_types = REFERENCE_TYPES
-    Gene_types = GENE_TYPES
-    Transcript_types = TRANSCRIPT_TYPES
-    Exon_types = EXON_TYPES
+    Transcript_types = {
+        'mRNA',
+        'snRNA', 
+        'rRNA',
+        'snoRNA',
+        'mRNA_TE_gene',
+        'miRNA',
+        'tRNA',
+        'ncRNA',
+        'pseudogenic_transcript',
+    }
+
+    Exon_types = {
+        'exon',
+        'pseudogenic_exon',
+    }
+
+    Reference = models.Reference
+    Gene = models.Gene
+    Transcript = models.Transcript
+    Exon = models.Exon
 
     Decoder = Decoder
-    Linker = GFFLinker
+    Linker = Linker
+    ReferenceLinker = ReferenceLinker
+    Builder = Builder
 
-    def __init__(self, Annotation):
-        super(DefaultGFFBuilder, self).__init__(Annotation)
+    def Reference_from_GFF(self, record):
+        return self.Reference(record.ID, record.end)
 
-        self._register_decoder('Reference')
-        self._register_decoder('Gene')
-        self._register_decoder('Transcript')
-        self._register_decoder('Exon')
+    def Gene_from_GFF(self, record):
+        return self.Gene(record.ID, record.strand)
 
-        self._register_linker('Reference', 'Gene')
-        self._register_linker('Gene', 'Transcript')
-        self._register_linker('Transcript', 'Exon')
+    def Transcript_from_GFF(self, record):
+        return self.Transcript(record.ID)
 
-    def _get_feature_class(self, name):
-        try:
-            return getattr(self.Annotation, name)
-        except AttributeError:
-            tpl = "Annotation doesn't have a {} type"
-            msg = tpl.format(name)
-            raise GFFBuilderError(msg)
+    def Exon_from_GFF(self, record):
+        return self.Exon(record.start, record.end)
 
-    def _register_decoder(self, name):
-        """A helper function for registering decoders."""
+    def GFF_reference_ID(self, feature, record):
+        return record.parent_ID or record.seqid
 
-        feature_cls = self._get_feature_class(name)
+    def _init_builder(self):
+        builder = self.Builder()
 
-        try:
-            from_GFF_func = getattr(feature_cls, 'from_GFF')
-        except AttributeError:
-            tpl = "{} doesn't have a from_GFF method"
-            msg = tpl.format(name)
-            raise GFFBuilderError(msg)
+        # Helpers
+        def add_decoder(decode_fn, types):
+            def fn(record):
+                if record.type in types:
+                    return decode_fn(record)
+            builder.transform.append(fn)
 
-        types_name = name + '_types'
-        types = getattr(self, types_name, [])
+        def add_linker(*args, **kwargs):
+            linker = self.Linker(*args, **kwargs)
+            builder.inspect_handler(linker)
 
-        decoder = self.Decoder(from_GFF_func, types)
-        decoder_name = name + '_decoder'
-        setattr(self, decoder_name, decoder)
+        # Add handlers to builder
+        add_decoder(self.Reference_from_GFF, self.Reference_types)
+        add_decoder(self.Gene_from_GFF, self.Gene_types)
+        add_decoder(self.Transcript_from_GFF, self.Transcript_types)
+        add_decoder(self.Exon_from_GFF, self.Exon_types)
 
-        self.builder.handlers.append(decoder)
+        add_linker(Reference, Gene, 'reference', self.GFF_reference_ID)
+        add_linker(Gene, Transcript, 'gene')
+        add_linker(Transcript, Exon, 'transcript')
 
-    # TODO linkers hold onto resources after build has completed
-    #      which is inefficient
-    def _register_linker(self, parent_name, child_name):
-        parent_feature_cls = self._get_feature_class(parent_name)
-        child_feature_cls = self._get_feature_class(child_name)
+        references = []
+        def collect_references(node, record):
+            if isinstance(node, self.Reference):
+                references.append(node)
 
-        parent_attr_name = parent_name.lower()
+        builder.post_transform.append(collect_references)
 
-        linker = self.Linker(parent_feature_cls, child_feature_cls,
-                             parent_attr_name)
+        return references
 
-        linker_name = '{}_{}_linker'.format(parent_name, child_name)
-        setattr(self, linker_name, linker)
-
-        self.builder.handlers.append(linker)
-
-    def from_GFF(self, records):
-        return self.builder.build(records)
+    def import(self, records):
+        builder, references = self._init_builder()
+        builder.build(records)
+        return references

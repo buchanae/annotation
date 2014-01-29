@@ -3,7 +3,6 @@ from __future__ import absolute_import
 from annotation.models import bases, sequences
 
 
-__version__ = '2.0.0'
 
 # TODO drop strand and use a boolean "reversed" or "reverse_strand" instead?
 
@@ -64,30 +63,15 @@ class Reference(Model, bases.Reference, sequences.ReferenceSequencesMixin):
 
     annotation = Parent(Annotation, related_name='references')
 
-    @classmethod
-    def from_GFF(cls, record):
-        return cls(record.ID, record.end)
-
 
 class Gene(Model, bases.Gene):
 
     reference = Parent(Reference, related_name='genes')
 
-    @classmethod
-    def from_GFF(cls, record):
-        return cls(record.ID, record.strand)
-
-    def GFF_reference_ID(self, record):
-        return record.parent_ID or record.seqid
-
 
 class Transcript(Model, bases.Transcript, sequences.TranscriptSequencesMixin):
 
     gene = Parent(Gene, related_name='transcripts')
-
-    @classmethod
-    def from_GFF(cls, record):
-        return cls(record.ID)
 
     @property
     def reference(self):
@@ -97,10 +81,6 @@ class Transcript(Model, bases.Transcript, sequences.TranscriptSequencesMixin):
 class Exon(Model, bases.Exon):
 
     transcript = Parent(Transcript, related_name='exons')
-
-    @classmethod
-    def from_GFF(cls, record):
-        return cls(record.start, record.end)
 
     @property
     def reference(self):
