@@ -43,7 +43,7 @@ class Linker(LinkerBase):
             super(Linker, self)._try_link(node, record)
 
 
-class Builder(BuilderBase):
+class Handler(object):
 
     Linker = Linker
 
@@ -51,25 +51,113 @@ class Builder(BuilderBase):
         def fn(record):
             if record.type in types:
                 return decode_fn(record)
-        self.transform.append(fn)
+        self.builder.transforms.append(fn)
 
     def add_linker(self, *args, **kwargs):
         linker = self.Linker(*args, **kwargs)
-        self.add_handler(linker)
+        self.builder.add_handler(linker)
+
+    def __init__(self, builder, models):
+        self.builder = builder
+        try:
+            decode_fn = getattr(self, 'decode')
+            types = getattr(self, 'types')
+            self.add_decoder(decode_fn, types)
+        except AttributeError:
+            pass
 
 
-class CodingSequenceHandler(object):
+class ReferenceHandler(Handler):
+
+    types = {
+        'reference',
+        'chromosome',
+        'contig',
+    }
+
+    def __init__(self, builder, models):
+        super(ReferenceHandler, self).__init__(builder)
+        self.Reference = models.Reference
+
+    def decode(self, record):
+        return self.Reference(record.ID, record.end)
+
+
+class GeneHandler(Handler):
+
+    types = {
+        'gene',
+        'pseudogene',
+        'transposable_element_gene',
+    }
+
+    def __init__(self, builder, models):
+        super(GeneHandler, self).__init__(builder)
+        self.Gene = models.Gene
+        self.add_linker(models.Reference, models.Gene, 'reference',
+                        self.reference_ID)
+
+    def decode(self, record):
+        return self.models.Gene(record.ID, record.strand)
+
+    def reference_ID(self, feature, record):
+        return record.parent_ID or record.seqid
+
+
+class TranscriptHandler(Handler):
+
+    types = {
+        'mRNA',
+        'snRNA', 
+        'rRNA',
+        'snoRNA',
+        'mRNA_TE_gene',
+        'miRNA',
+        'tRNA',
+        'ncRNA',
+        'pseudogenic_transcript',
+    }
+
+    def __init__(self, builder, models):
+        super(TranscriptHandler, self).__init__(builder, models)
+        self.Transcript = models.Transcript
+        self.add_linker(models.Gene, models.Transcript, 'gene')
+
+    def decode(self, record):
+        return self.Transcript(record.ID)
+
+
+class ExonHandler(Handler):
+
+    types = {
+        'exon',
+        'pseudogenic_exon',
+    }
+
+    def __init__(self, builder, models):
+        super(ExonHandler, self).__init__(builder, models)
+        self.Exon = models.Exon
+        self.add_linker(models.Transcript, models.Exon, 'transcript')
+
+    def decode(self, record):
+        return self.Exon(record.start, record.end)
+
+
+class CodingSequenceHandler(Handler):
+
+    types = {'CDS'}
 
     class NotResolved(Exception): pass
 
-    def __init__(self, CodingSequence, types, Transcript):
-        self.CodingSequence = CodingSequence
-        self.types = types
-        self.Transcript = Transcript
+    def __init__(self, builder, models):
+        super(CodingSequence, self).__init__(builder, models)
+        self.CodingSequence = models.CodingSequence
+        self.Transcript = models.Transcript
         self.transcripts = {}
         self.deferred = []
+        builder.add_handler(self)
 
-    def CodingSequence_from_GFF(self, record):
+    def decode(self, record):
         return self.CodingSequence(record.start, record.end)
 
     def transform(self, record):
@@ -90,6 +178,13 @@ class CodingSequenceHandler(object):
                 except self.NotResolved:
                     pass
 
+    def finalize(self):
+        for record in self.deferred:
+            try:
+                self.resolve(record)
+            except self.NotResolved:
+                log.warning('Never resolved: {}'.format(record))
+
     def resolve(self, record):
         parent_ID = record.parent_ID
         try:
@@ -105,94 +200,35 @@ class CodingSequenceHandler(object):
                 cds.start = min(cds.start, record.start)
                 cds.end = max(cds.end, record.end)
 
-    def finalize(self):
-        for record in self.deferred:
-            try:
-                self.resolve(record)
-            except self.NotResolved:
-                log.warning('Never resolved: {}'.format(record))
-
 
 class Reader(object):
 
-    Reference_types = {
-        'reference',
-        'chromosome',
-        'contig',
-    }
-
-    Gene_types = {
-        'gene',
-        'pseudogene',
-        'transposable_element_gene',
-    }
-
-    Transcript_types = {
-        'mRNA',
-        'snRNA', 
-        'rRNA',
-        'snoRNA',
-        'mRNA_TE_gene',
-        'miRNA',
-        'tRNA',
-        'ncRNA',
-        'pseudogenic_transcript',
-    }
-
-    Exon_types = {
-        'exon',
-        'pseudogenic_exon',
-    }
-
-    CodingSequence_types = {'CDS'}
-
-    Reference = models.Reference
-    Gene = models.Gene
-    Transcript = models.Transcript
-    Exon = models.Exon
-    CodingSequence = models.CodingSequence
-
     Builder = Builder
-    CodingSequenceHandler = CodingSequenceHandler
 
-    def Reference_from_GFF(self, record):
-        return self.Reference(record.ID, record.end)
+    handlers = [
+        ReferenceHandler,
+        GeneHandler,
+        TranscriptHandler,
+        ExonHandler,
+        CodingSequenceHandler,
+    ]
 
-    def Gene_from_GFF(self, record):
-        return self.Gene(record.ID, record.strand)
-
-    def Transcript_from_GFF(self, record):
-        return self.Transcript(record.ID)
-
-    def Exon_from_GFF(self, record):
-        return self.Exon(record.start, record.end)
-
-    def GFF_reference_ID(self, feature, record):
-        return record.parent_ID or record.seqid
-
-    def _init_builder(self, builder):
-        builder.add_decoder(self.Reference_from_GFF, self.Reference_types)
-        builder.add_decoder(self.Gene_from_GFF, self.Gene_types)
-        builder.add_decoder(self.Transcript_from_GFF, self.Transcript_types)
-        builder.add_decoder(self.Exon_from_GFF, self.Exon_types)
-
-        builder.add_linker(self.Reference, self.Gene, 'reference',
-                           self.GFF_reference_ID)
-        builder.add_linker(self.Gene, self.Transcript, 'gene')
-        builder.add_linker(self.Transcript, self.Exon, 'transcript')
-
-        cds_handler = self.CodingSequenceHandler(self.CodingSequence,
-                                                 self.CodingSequence_types,
-                                                 self.Transcript)
-        builder.add_handler(cds_handler)
+    class Models:
+        Reference = models.Reference
+        Gene = models.Gene
+        Transcript = models.Transcript
+        Exon = models.Exon
+        CodingSequence = models.CodingSequence
 
     def read(self, records):
         builder = self.Builder()
-        self._init_builder(builder)
+
+        for handler in self.handlers:
+            handler(builder, self.Models)
 
         references = []
         def collect_references(node, record):
-            if isinstance(node, self.Reference):
+            if isinstance(node, self.Models.Reference):
                 references.append(node)
 
         builder.post_transform.append(collect_references)
