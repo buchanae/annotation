@@ -45,3 +45,33 @@ class TranscriptSequencesMixin(object):
             abs_orfs.append(interval)
 
         return abs_orfs
+
+
+class TranscriptPartSequencesMixin(object):
+    @property
+    def sequence(self):
+        rel_start = self.transcript.abs_to_rel(self.start)
+        rel_end = self.transcript.abs_to_rel(self.end)
+
+        # If this transcript is on the reverse strand,
+        # our positions are backwards, so swap them.
+        if self.reverse_strand:
+            rel_end, rel_start = rel_start, rel_end
+
+        return self.transcript.sequence[rel_start - 1:rel_end]
+
+
+# TODO find a better place for this
+class InvalidCDS(Exception): pass
+
+class CodingSequencesMixin(TranscriptPartSequencesMixin):
+
+    @property
+    def amino_acid_sequence(self):
+        # TODO this should really happen on initialization
+        if len(self.sequence) % 3 != 0:
+            raise InvalidCDS()
+
+        # TODO it's also invalid if it doesn't end with a stop codon
+
+        return sequence_utils.translate(self.sequence)

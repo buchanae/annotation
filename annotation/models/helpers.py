@@ -1,4 +1,8 @@
 import collections
+import logging
+
+
+log = logging.getLogger(__name__)
 
 
 class StrandedPositions(object):
@@ -21,7 +25,10 @@ class TranscriptPositions(object):
             raise IndexError()
 
         l = 0
-        for exon in self.exons:
+        sort_key = lambda exon: exon.start
+        exons = sorted(self.exons, key=sort_key, reverse=self.reverse_strand)
+
+        for exon in exons:
             if l <= rel <= l + exon.length:
                 if self.reverse_strand:
                     return exon.five_prime - (rel - l - 1)
@@ -29,6 +36,28 @@ class TranscriptPositions(object):
                     return exon.five_prime + (rel - l - 1)
 
             l += exon.length
+
+    def abs_to_rel(self, abs_pos):
+        if abs_pos < self.start or abs_pos > self.end:
+            # TODO better error class and/or message
+            raise IndexError()
+
+        l = 0
+        sort_key = lambda exon: exon.start
+        exons = sorted(self.exons, key=sort_key, reverse=self.reverse_strand)
+
+        for exon in exons:
+            if abs_pos in exon:
+                if self.reverse_strand:
+                    return exon.five_prime - abs_pos + 1 + l
+                else:
+                    return abs_pos - exon.five_prime + 1 + l
+            l += exon.length
+
+        # At this point, the abs_pos didn't fall within an exon,
+        # i.e. it's probably in an intron.
+        # TODO better error class and/or message
+        raise IndexError()
 
 
 class ExonCollection(collections.Sequence):

@@ -87,7 +87,7 @@ class Exon(Model, bases.Exon):
         return self.transcript.gene.reference
 
 
-class CodingSequence(bases.CodingSequence):
+class CodingSequence(bases.CodingSequence, sequences.CodingSequencesMixin):
 
     def __init__(self, start, end):
         self._transcript = None

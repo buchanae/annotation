@@ -103,12 +103,18 @@ class Transcript(helpers.TranscriptPositions):
         return self.gene.strand
 
     @property
+    def reverse_strand(self):
+        return self.strand == '-'
+
+    @property
     def start(self):
-        return min(e.start for e in self.exons)
+        pos = min(e.start for e in self.exons)
+        return positions.GenomicPosition(pos, self.reverse_strand)
 
     @property
     def end(self):
-        return max(e.end for e in self.exons)
+        pos = max(e.end for e in self.exons)
+        return positions.GenomicPosition(pos, self.reverse_strand)
 
     @property
     def length(self):
