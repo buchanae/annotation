@@ -1,4 +1,4 @@
-from annotation.builders.gff.core import Handler, Linker, Builder
+from annotation.builders.gff.core import Handler, Linker
 
 class ReferenceHandler(Handler):
 
@@ -9,7 +9,7 @@ class ReferenceHandler(Handler):
     }
 
     def __init__(self, builder, models):
-        super(ReferenceHandler, self).__init__(builder)
+        super(ReferenceHandler, self).__init__(builder, models)
         self.Reference = models.Reference
 
     def decode(self, record):
@@ -25,7 +25,7 @@ class GeneHandler(Handler):
     }
 
     def __init__(self, builder, models):
-        super(GeneHandler, self).__init__(builder)
+        super(GeneHandler, self).__init__(builder, models)
         self.Gene = models.Gene
         self.add_linker(models.Reference, models.Gene, 'reference',
                         self.reference_ID)

@@ -37,21 +37,22 @@ class Handler(object):
 
     Linker = Linker
 
-    def add_decoder(self, decode_fn, types):
-        def fn(record):
-            if record.type in types:
-                return decode_fn(record)
-        self.builder.transforms.append(fn)
-
-    def add_linker(self, *args, **kwargs):
-        linker = self.Linker(*args, **kwargs)
-        self.builder.add_handler(linker)
-
     def __init__(self, builder, models):
         self.builder = builder
         try:
             decode_fn = getattr(self, 'decode')
             types = getattr(self, 'types')
-            self.add_decoder(decode_fn, types)
         except AttributeError:
             pass
+        else:
+            self.add_decoder(decode_fn, types)
+
+    def add_decoder(self, decode_fn, types):
+        def fn(record):
+            if record.type in types:
+                return decode_fn(record)
+        self.builder.transform.append(fn)
+
+    def add_linker(self, *args, **kwargs):
+        linker = self.Linker(*args, **kwargs)
+        self.builder.add_handler(linker)
