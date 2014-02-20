@@ -61,16 +61,16 @@ class TranscriptPartSequencesMixin(object):
         return self.transcript.sequence[rel_start - 1:rel_end]
 
 
-# TODO find a better place for this
-class InvalidCDS(Exception): pass
 
 class CodingSequencesMixin(TranscriptPartSequencesMixin):
+
+    class InvalidLengthError(Exception): pass
 
     @property
     def amino_acid_sequence(self):
         # TODO this should really happen on initialization
         if len(self.sequence) % 3 != 0:
-            raise InvalidCDS()
+            raise self.InvalidLengthError()
 
         # TODO it's also invalid if it doesn't end with a stop codon
 
