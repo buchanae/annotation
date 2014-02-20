@@ -7,12 +7,12 @@ import logging
 log = logging.getLogger(__name__)
 
 
+# TODO __slots__
 class GenomicPosition(int):
 
-    def __new__(cls, pos=1, reverse_strand=False):
-        if pos < 1:
-            msg = "Genomic positions less than 1 are set to 1: {}".format(pos)
-            log.warn(msg)
+    def __new__(cls, pos=None, reverse_strand=False):
+        if pos is None:
+            pos = 1
 
         obj = super(GenomicPosition, cls).__new__(cls, pos)
         obj._pos = pos
@@ -51,7 +51,7 @@ class GenomicPositionDescriptor(object):
         self.name = name
 
     def __get__(self, obj, cls=None):
-        value = getattr(obj, self.name, 1)
+        value = getattr(obj, self.name, None)
         return GenomicPosition(value, obj.reverse_strand)
 
     def __set__(self, obj, value):
