@@ -126,7 +126,7 @@ class CodingSequenceHandler(Handler):
             raise self.NotResolved()
         else:
             if not transcript.coding_sequence:
-                cds = self.CodingSequence_from_GFF(record)
+                cds = self.decode(record)
                 cds.transcript = transcript
             else:
                 cds = transcript.coding_sequence

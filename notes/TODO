@@ -4,4 +4,4 @@
 
 - pull things from PCU
 
-- merge in GenomicPosition helper
+- include gff package as dependency

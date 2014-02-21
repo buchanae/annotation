@@ -1,43 +1,17 @@
+"""
+Contains linked models.
+For example:
+- Gene is linked to Reference by the Parent relationship.
+- Transcript has a sequence that depends on its exons and
+  its reference's sequence.
+"""
 from __future__ import absolute_import
 
 from annotation.models import bases, sequences
+from annotation.models.relationships import Parent
 
 
-# TODO drop strand and use a boolean "reversed" or "reverse_strand" instead?
 class Region(bases.Region): pass
-
-
-class Parent(object):
-    def __init__(self, Parent_cls, name=None, related_name=None):
-        self._name = name
-        self.Parent_cls = Parent_cls
-        self.related_name = related_name
-
-    @property
-    def name(self):
-        return self._name
-
-    @name.setter
-    def name(self, name):
-        self._name = name
-        if not self.related_name:
-            self.related_name = name + '_set'
-
-    def __get__(self, obj, cls=None):
-        return obj._model_data.get(self.name)
-
-    def __set__(self, obj, new_parent):
-        current_parent = self.__get__(obj)
-        if current_parent:
-            related_set = getattr(current_parent, self.related_name)
-            related_set.remove(obj)
-
-        obj._model_data[self.name] = new_parent
-
-        if new_parent:
-            # TODO catch missing related attr on parent?
-            related_set = getattr(new_parent, self.related_name)
-            related_set.add(obj)
 
 
 class ModelMeta(type):
@@ -51,12 +25,17 @@ class ModelMeta(type):
 class Model(object):
     __metaclass__ = ModelMeta
 
+    # TODO use __new__?
+    #      even need Model? Is there a better way to implement Parent?
     def __init__(self, *args, **kwargs):
         self._model_data = {}
         super(Model, self).__init__(*args, **kwargs)
 
 
-class Annotation(Model, bases.Annotation): pass
+class Annotation(Model, bases.Annotation):
+    def __init__(self):
+        super(Annotation, self).__init__()
+        self.sequences = {}
 
 
 class Reference(Model, bases.Reference, sequences.ReferenceSequencesMixin):
