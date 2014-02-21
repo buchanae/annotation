@@ -14,41 +14,23 @@ from annotation.models.relationships import Parent
 class Region(bases.Region): pass
 
 
-class ModelMeta(type):
-    def __init__(cls, name, bases, attrs):
-        for key, value in attrs.items():
-            if isinstance(value, Parent):
-                value.name = key
-        super(ModelMeta, cls).__init__(name, bases, attrs)
-
-
-class Model(object):
-    __metaclass__ = ModelMeta
-
-    # TODO use __new__?
-    #      even need Model? Is there a better way to implement Parent?
-    def __init__(self, *args, **kwargs):
-        self._model_data = {}
-        super(Model, self).__init__(*args, **kwargs)
-
-
-class Annotation(Model, bases.Annotation):
+class Annotation(bases.Annotation):
     def __init__(self):
         super(Annotation, self).__init__()
         self.sequences = {}
 
 
-class Reference(Model, bases.Reference, sequences.ReferenceSequencesMixin):
+class Reference(bases.Reference, sequences.ReferenceSequencesMixin):
 
     annotation = Parent(Annotation, related_name='references')
 
 
-class Gene(Model, bases.Gene):
+class Gene(bases.Gene):
 
     reference = Parent(Reference, related_name='genes')
 
 
-class Transcript(Model, bases.Transcript, sequences.TranscriptSequencesMixin):
+class Transcript(bases.Transcript, sequences.TranscriptSequencesMixin):
 
     gene = Parent(Gene, related_name='transcripts')
 
@@ -57,7 +39,7 @@ class Transcript(Model, bases.Transcript, sequences.TranscriptSequencesMixin):
         return self.gene.reference
 
 
-class Exon(Model, bases.Exon):
+class Exon(bases.Exon):
 
     transcript = Parent(Transcript, related_name='exons')
 
