@@ -2,7 +2,7 @@
 from __future__ import absolute_import
 
 from annotation import models
-from annotation.readers.core import Builder
+from annotation.builder import Builder
 from annotation.readers.gff import handlers
 
 

@@ -1,5 +1,4 @@
-# TODO Builder needs to be moved somewhere agnostic of reading/writing
-from annotation.readers.core import Builder
+from annotation.builder import Builder
 
 
 class DefaultHandler(object):
