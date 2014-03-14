@@ -1,4 +1,4 @@
-from annotation.builders.gff.core import Handler, Linker
+from annotation.readers.gff.core import Handler, Linker
 
 class ReferenceHandler(Handler):
 

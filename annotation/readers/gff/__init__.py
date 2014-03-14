@@ -2,8 +2,8 @@
 from __future__ import absolute_import
 
 from annotation import models
-from annotation.builders.core import Builder
-from annotation.builders.gff import handlers
+from annotation.readers.core import Builder
+from annotation.readers.gff import handlers
 
 
 class ReaderBase(object):
