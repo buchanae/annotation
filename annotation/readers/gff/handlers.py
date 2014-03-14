@@ -1,93 +1,124 @@
 from annotation.readers.gff.core import Handler, Linker
 
-class ReferenceHandler(Handler):
 
-    types = {
-        'reference',
-        'chromosome',
-        'contig',
-    }
+def restrict_record_types(types, decode_fn):
+    def fn(record, *args, **kwargs):
+        if record.type in types:
+            return decode_fn(record, *args, **kwargs)
+    return fn
 
-    def __init__(self, builder, models):
-        super(ReferenceHandler, self).__init__(builder, models)
-        self.Reference = models.Reference
+
+class ReferenceHandler(object):
+
+    def __init__(self, Reference):
+        self.Reference = Reference
+        self.types = {
+            'reference',
+            'chromosome',
+            'contig',
+        }
+
+        self.decoder = restrict_record_types(self.types, self.decode)
+
+    def init_builder(self, builder):
+        self.references = []
+        builder.transform.append(self.decoder)
+        builder.post_transform.append(self.collect)
 
     def decode(self, record):
         return self.Reference(record.ID, record.end)
 
+    def collect(self, node, record):
+        if isinstance(node, self.Reference):
+            self.references.append(node)
 
-class GeneHandler(Handler):
 
-    types = {
-        'gene',
-        'pseudogene',
-        'transposable_element_gene',
-    }
+class GeneHandler(object):
 
-    def __init__(self, builder, models):
-        super(GeneHandler, self).__init__(builder, models)
-        self.Gene = models.Gene
-        self.add_linker(models.Reference, models.Gene, 'reference',
-                        self.reference_ID)
+    def __init__(self, Gene, Reference):
+        self.Gene = Gene
+        self.types = {
+            'gene',
+            'pseudogene',
+            'transposable_element_gene',
+        }
+
+        self.decoder = restrict_record_types(self.types, self.decode)
+        self.linker = Linker(Reference, Gene, 'reference', self.reference_ID)
+
+    def init_builder(self, builder):
+        builder.transform.append(self.decoder)
+        builder.add_handler(self.linker)
 
     def decode(self, record):
-        return self.models.Gene(record.ID, record.strand)
+        return self.Gene(record.ID, record.strand)
 
     def reference_ID(self, feature, record):
         return record.parent_ID or record.seqid
 
 
-class TranscriptHandler(Handler):
+class TranscriptHandler(object):
 
-    types = {
-        'mRNA',
-        'snRNA', 
-        'rRNA',
-        'snoRNA',
-        'mRNA_TE_gene',
-        'miRNA',
-        'tRNA',
-        'ncRNA',
-        'pseudogenic_transcript',
-    }
+    def __init__(self, Transcript, Gene):
+        self.Transcript = Transcript
+        self.types = {
+            'mRNA',
+            'snRNA', 
+            'rRNA',
+            'snoRNA',
+            'mRNA_TE_gene',
+            'miRNA',
+            'tRNA',
+            'ncRNA',
+            'pseudogenic_transcript',
+        }
 
-    def __init__(self, builder, models):
-        super(TranscriptHandler, self).__init__(builder, models)
-        self.Transcript = models.Transcript
-        self.add_linker(models.Gene, models.Transcript, 'gene')
+        self.decoder = restrict_record_types(self.types, self.decode)
+        self.linker = Linker(Gene, Transcript, 'gene')
+
+    def init_builder(self, builder):
+        builder.transform.append(self.decoder)
+        builder.add_handler(self.linker)
 
     def decode(self, record):
         return self.Transcript(record.ID)
 
 
-class ExonHandler(Handler):
+class ExonHandler(object):
 
-    types = {
-        'exon',
-        'pseudogenic_exon',
-    }
+    def __init__(self, Exon, Transcript):
+        self.Exon = Exon
+        self.types = {
+            'exon',
+            'pseudogenic_exon',
+        }
 
-    def __init__(self, builder, models):
-        super(ExonHandler, self).__init__(builder, models)
-        self.Exon = models.Exon
-        self.add_linker(models.Transcript, models.Exon, 'transcript')
+        self.decoder = restrict_record_types(self.types, self.decode)
+        self.linker = Linker(Transcript, Exon, 'transcript')
+
+    def init_builder(self, builder):
+        builder.transform.append(self.decoder)
+        builder.add_handler(self.linker)
 
     def decode(self, record):
         return self.Exon(record.start, record.end)
 
 
-class CodingSequenceHandler(Handler):
-
-    types = {'CDS'}
+class CodingSequenceHandler(object):
 
     class NotResolved(Exception): pass
 
-    def __init__(self, builder, models):
-        super(CodingSequenceHandler, self).__init__(builder, models)
-        self.CodingSequence = models.CodingSequence
-        self.Transcript = models.Transcript
+    def __init__(self, CodingSequence, Transcript):
+        self.CodingSequence = CodingSequence
+        self.Transcript = Transcript
+        self.types = {'CDS'}
         self.transcripts = {}
         self.deferred = []
+
+        self.decoder = restrict_record_types(self.types, self.decode)
+
+    def init_builder(self, builder):
+        builder.transform.append(self.decoder)
         builder.add_handler(self)
 
     def decode(self, record):
@@ -100,6 +131,9 @@ class CodingSequenceHandler(Handler):
             except self.NotResolved:
                 self.deferred.append(record)
 
+    # TODO could take a hint from angular and allow this to be returned from
+    #      the transform function, which would give it access to the node and
+    #      record explicitly
     def post_transform(self, node, record):
         if isinstance(node, self.Transcript):
             self.transcripts[node.ID] = node
