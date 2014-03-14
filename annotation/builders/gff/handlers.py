@@ -83,7 +83,7 @@ class CodingSequenceHandler(Handler):
     class NotResolved(Exception): pass
 
     def __init__(self, builder, models):
-        super(CodingSequence, self).__init__(builder, models)
+        super(CodingSequenceHandler, self).__init__(builder, models)
         self.CodingSequence = models.CodingSequence
         self.Transcript = models.Transcript
         self.transcripts = {}

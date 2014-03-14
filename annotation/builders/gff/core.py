@@ -39,6 +39,7 @@ class Handler(object):
 
     def __init__(self, builder, models):
         self.builder = builder
+        self.models = models
         try:
             decode_fn = getattr(self, 'decode')
             types = getattr(self, 'types')
