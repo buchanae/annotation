@@ -1,7 +1,5 @@
-- consider import/export naming vs. builder
-
 - GFF exporter
 
 - pull things from PCU
 
-- include gff package as dependency
+- split sequence stuff into separate package?

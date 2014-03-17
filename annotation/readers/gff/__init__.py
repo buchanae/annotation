@@ -1,6 +1,8 @@
 # TODO handle multipe parents when linking
 from __future__ import absolute_import
 
+from gff import GFF
+
 from annotation import models
 from annotation.builder import Builder
 from annotation.readers.gff import handlers
@@ -17,7 +19,6 @@ class ReaderBase(object):
 
     def _init_builder(self, builder):
         for handler in self._handlers:
-            print handler
             handler.init_builder(builder)
 
 
@@ -51,6 +52,14 @@ class Reader(ReaderBase):
     def read(self, records):
         super(Reader, self).read(records)
         return self.reference_handler.references
+
+    def read_file(self, file_handle):
+        records = GFF.from_file(file_handle)
+        return self.read(records)
+
+    def read_path(self, path):
+        with open(path) as file_handle:
+            return self.read_file(file_handle)
 
 
 # Goals:
@@ -87,5 +96,8 @@ class Reader(ReaderBase):
 
 #8. Listing genes should match the order in the gff file?
 
+
 _default_reader = Reader()
 read = _default_reader.read
+read_file = _default_reader.read_file
+read_path = _default_reader.read_path
