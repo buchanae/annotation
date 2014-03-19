@@ -8,6 +8,21 @@ def restrict_record_types(types, decode_fn):
     return fn
 
 
+class AnnotationHandler(object):
+
+    def __init__(self, Annotation, Reference):
+        self.Annotation = Annotation
+        self.Reference = Reference
+
+    def init_builder(self, builder):
+        self.annotation = self.Annotation()
+        builder.post_transform.append(self.link_references)
+
+    def link_references(self, node, record):
+        if isinstance(node, self.Reference):
+            node.annotation = self.annotation
+
+
 class ReferenceHandler(object):
 
     def __init__(self, Reference):
@@ -21,16 +36,10 @@ class ReferenceHandler(object):
         self.decoder = restrict_record_types(self.types, self.decode)
 
     def init_builder(self, builder):
-        self.references = []
         builder.transform.append(self.decoder)
-        builder.post_transform.append(self.collect)
 
     def decode(self, record):
         return self.Reference(record.ID, record.end)
-
-    def collect(self, node, record):
-        if isinstance(node, self.Reference):
-            self.references.append(node)
 
 
 class GeneHandler(object):

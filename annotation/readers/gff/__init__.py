@@ -33,6 +33,9 @@ class Reader(ReaderBase):
         m = self.models
 
         # Initialize handlers
+        anno_h = h.AnnotationHandler(m.Annotation, m.Reference)
+        self.annotation_handler = anno_h
+
         self.reference_handler = h.ReferenceHandler(m.Reference)
         self.gene_handler = h.GeneHandler(m.Gene, m.Reference)
         self.transcript_handler = h.TranscriptHandler(m.Transcript, m.Gene)
@@ -41,7 +44,9 @@ class Reader(ReaderBase):
         cds_h = h.CodingSequenceHandler(m.CodingSequence, m.Transcript)
         self.coding_sequence_handler = cds_h
 
+
         self._handlers = [
+            self.annotation_handler,
             self.reference_handler,
             self.gene_handler,
             self.transcript_handler,
@@ -51,7 +56,7 @@ class Reader(ReaderBase):
 
     def read(self, records):
         super(Reader, self).read(records)
-        return self.reference_handler.references
+        return self.annotation_handler.annotation
 
     def read_file(self, file_handle):
         records = GFF.from_file(file_handle)
