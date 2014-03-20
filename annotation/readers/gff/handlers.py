@@ -1,4 +1,6 @@
-from annotation.readers.gff.core import Handler, Linker
+from collections import defaultdict
+
+from annotation.readers.gff.linker import Linker
 
 
 def restrict_record_types(types, decode_fn):
@@ -115,63 +117,38 @@ class ExonHandler(object):
 
 class CodingSequenceHandler(object):
 
-    class NotResolved(Exception): pass
-
     def __init__(self, CodingSequence, Transcript):
         self.CodingSequence = CodingSequence
         self.Transcript = Transcript
         self.types = {'CDS'}
         self.transcripts = {}
-        self.deferred = []
 
-        self.decoder = restrict_record_types(self.types, self.decode)
+        self.start_end_by_parent = {}
+
+        self.collector = restrict_record_types(self.types, self.collect)
 
     def init_builder(self, builder):
-        builder.transform.append(self.decoder)
+        builder.transform.append(self.collector)
         builder.add_handler(self)
 
-    def decode(self, record):
-        return self.CodingSequence(record.start, record.end)
+    def collect(self, record):
+        # TODO you end up storing every cds min/max
+        parent_ID = record.parent_ID
+        default = 0, 0
+        start, end = self.start_end_by_parent.get(parent_ID, default)
+        start, end = min(start, record.start), max(end, record.end)
+        self.start_end_by_parent[parent_ID] = start, end
 
-    def transform(self, record):
-        if record.type in self.types:
-            try:
-                self.resolve(record)
-            except self.NotResolved:
-                self.deferred.append(record)
-
-    # TODO could take a hint from angular and allow this to be returned from
-    #      the transform function, which would give it access to the node and
-    #      record explicitly
     def post_transform(self, node, record):
         if isinstance(node, self.Transcript):
             self.transcripts[node.ID] = node
 
-            for record in self.deferred:
-                try:
-                    self.resolve(record)
-                    self.deferred.remove(record)
-                except self.NotResolved:
-                    pass
-
     def finalize(self):
-        for record in self.deferred:
+        for transcript_ID, transcript in self.transcripts.items():
             try:
-                self.resolve(record)
-            except self.NotResolved:
-                log.warning('Never resolved: {}'.format(record))
-
-    def resolve(self, record):
-        parent_ID = record.parent_ID
-        try:
-            transcript = self.transcripts[parent_ID]
-        except KeyError:
-            raise self.NotResolved()
-        else:
-            if not transcript.coding_sequence:
-                cds = self.decode(record)
-                cds.transcript = transcript
+                start, end = self.start_end_by_parent[transcript_ID]
+            except KeyError:
+                pass
             else:
-                cds = transcript.coding_sequence
-                cds.start = min(cds.start, record.start)
-                cds.end = max(cds.end, record.end)
+                cds = self.CodingSequence(start, end)
+                cds.transcript = transcript
