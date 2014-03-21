@@ -4,7 +4,7 @@ import re
 class DefaultTypes(object):
 
     # Helper for turning a whitespace-separated string into a set
-    _split = lambda s: set(re.split('\s', s))
+    _split = lambda _, s: set(re.split('\s', s))
 
     def __init__(self):
         self.Reference = self._split('''
@@ -41,4 +41,4 @@ class DefaultTypes(object):
         ''')
 
 
-default_types = types.DefaultTypes()
+default_types = DefaultTypes()
