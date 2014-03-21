@@ -6,57 +6,43 @@ from gff import GFF
 from annotation import models
 from annotation.builder import Builder
 from annotation.readers.gff import handlers
+from annotation.readers.gff.types import default_types
 
 
-class ReaderBase(object):
+class Reader(object):
 
     Builder = Builder
 
-    def read(self, records):
-        builder = self.Builder()
-        self._init_builder(builder)
-        builder.build(records)
+    def __init__(self, models=models, types=default_types, handlers=handlers):
+        self._models = models
+        self._types = types
+        self._handlers = handlers
 
-    def _init_builder(self, builder):
-        for handler in self._handlers:
-            handler.init_builder(builder)
-
-
-class Reader(ReaderBase):
-
-    def __init__(self, models=models, handlers=handlers):
-        self.models = models
-        self.handlers = handlers
-
+    def init_builder(self, builder):
         # For brevity:
-        h = self.handlers
-        m = self.models
+        b = builder
+        m = self._models
+        t = self._types
+        h = self._handlers
 
         # Initialize handlers
-        anno_h = h.AnnotationHandler(m.Annotation, m.Reference)
-        self.annotation_handler = anno_h
+        anno_handler = h.AnnotationHandler(b, m.Annotation, m.Reference)
+        h.ReferenceHandler(b, m.Reference, t.Reference)
+        h.GeneHandler(b, m.Gene, m.Reference, t.Gene)
+        h.TranscriptHandler(b, m.Transcript, m.Gene, t.Transcript)
+        h.ExonHandler(b, m.Exon, m.Transcript, t.Exon)
+        h.CodingSequenceHandler(b, m.CodingSequence, m.Transcript,
+                                t.CodingSequence)
 
-        self.reference_handler = h.ReferenceHandler(m.Reference)
-        self.gene_handler = h.GeneHandler(m.Gene, m.Reference)
-        self.transcript_handler = h.TranscriptHandler(m.Transcript, m.Gene)
-        self.exon_handler = h.ExonHandler(m.Exon, m.Transcript)
-
-        cds_h = h.CodingSequenceHandler(m.CodingSequence, m.Transcript)
-        self.coding_sequence_handler = cds_h
-
-
-        self._handlers = [
-            self.annotation_handler,
-            self.reference_handler,
-            self.gene_handler,
-            self.transcript_handler,
-            self.exon_handler,
-            self.coding_sequence_handler,
-        ]
+        # Return the annotation handler, which gives us access to the 
+        # Annotation instance after the build completes
+        return anno_handler
 
     def read(self, records):
-        super(Reader, self).read(records)
-        return self.annotation_handler.annotation
+        builder = self.Builder()
+        anno_handler = self.init_builder(builder)
+        builder.build(records)
+        return anno_handler.annotation
 
     def read_file(self, file_handle):
         records = GFF.from_file(file_handle)
@@ -69,8 +55,20 @@ class Reader(ReaderBase):
 
 # Goals:
 # 1. easy access to adding a recognized type
-#    reader.reference_handler.types.add('region')
-# DONE
+#   class MyTypes(DefaultTypes):
+#       def  __init__(self):
+#           super(MyTypes, self).__init__()
+#           self.Transcript.add('foo')
+#
+#   reader = Reader(types=MyTypes())
+#
+# OR
+#   annotation.readers.gff.default_types.Transcript.add('foo')
+#   which would make a global change
+#
+# OR I guess you could subclass a handler and hardcode the types there
+#    although that doesn't seem nice
+
 
 # 2. reuseable models across multiple file format readers
 #    gff_reader = GFFReader(models)
@@ -79,10 +77,10 @@ class Reader(ReaderBase):
 
 # 3. ability to add new handlers (e.g. coding sequence)
 # DONE
-#    Requires subclassing Reader to initialize new handlers
+#    Requires subclassing Reader to initialize new handlers;
 #    that's a good thing, because it makes the handler variables
 #    and the reader definition explicit, and it's not a ton
-#    of work to subclass and add some simple calls to __init__
+#    of work to subclass and add some simple calls to init_builder
 
 
 # 4. ability to easily override just one model in the set
@@ -95,12 +93,21 @@ class Reader(ReaderBase):
 # 6. make it clear what happens when a reader is used twice
 # a reader may be resused and the records from each call to read()
 # (i.e. separate build) are unrelated)
+#
+# this just needs documentation at this point
+#
+# the opposite behavior could easily be created by moving the init_builder
+# lines to __init__, which is pretty cool
 
 #7. write a genbank reader to prove the reusability
 # TODO make this reusable and write a GenBank reader
 
 #8. Listing genes should match the order in the gff file?
+#
+# I think this requires modifying the parent/child relationship mechanism
 
+
+# 9. Possibly ditch AnnotationHandler and go with Annotation.from_gff
 
 _default_reader = Reader()
 read = _default_reader.read

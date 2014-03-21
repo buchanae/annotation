@@ -12,11 +12,11 @@ def restrict_record_types(types, decode_fn):
 
 class AnnotationHandler(object):
 
-    def __init__(self, Annotation, Reference):
+    def __init__(self, builder, Annotation, Reference):
         self.Annotation = Annotation
         self.Reference = Reference
 
-    def init_builder(self, builder):
+        # init builder
         self.annotation = self.Annotation()
         builder.post_transform.append(self.link_references)
 
@@ -27,17 +27,12 @@ class AnnotationHandler(object):
 
 class ReferenceHandler(object):
 
-    def __init__(self, Reference):
+    def __init__(self, builder, Reference, types):
         self.Reference = Reference
-        self.types = {
-            'reference',
-            'chromosome',
-            'contig',
-        }
-
+        self.types = types
         self.decoder = restrict_record_types(self.types, self.decode)
 
-    def init_builder(self, builder):
+        # init builder
         builder.transform.append(self.decoder)
 
     def decode(self, record):
@@ -46,18 +41,13 @@ class ReferenceHandler(object):
 
 class GeneHandler(object):
 
-    def __init__(self, Gene, Reference):
+    def __init__(self, builder, Gene, Reference, types):
         self.Gene = Gene
-        self.types = {
-            'gene',
-            'pseudogene',
-            'transposable_element_gene',
-        }
-
+        self.types = types
         self.decoder = restrict_record_types(self.types, self.decode)
         self.linker = Linker(Reference, Gene, 'reference', self.reference_ID)
 
-    def init_builder(self, builder):
+        # init builder
         builder.transform.append(self.decoder)
         builder.add_handler(self.linker)
 
@@ -70,24 +60,13 @@ class GeneHandler(object):
 
 class TranscriptHandler(object):
 
-    def __init__(self, Transcript, Gene):
+    def __init__(self, builder, Transcript, Gene, types):
         self.Transcript = Transcript
-        self.types = {
-            'mRNA',
-            'snRNA', 
-            'rRNA',
-            'snoRNA',
-            'mRNA_TE_gene',
-            'miRNA',
-            'tRNA',
-            'ncRNA',
-            'pseudogenic_transcript',
-        }
-
+        self.types = types
         self.decoder = restrict_record_types(self.types, self.decode)
         self.linker = Linker(Gene, Transcript, 'gene')
 
-    def init_builder(self, builder):
+        # init builder
         builder.transform.append(self.decoder)
         builder.add_handler(self.linker)
 
@@ -97,17 +76,13 @@ class TranscriptHandler(object):
 
 class ExonHandler(object):
 
-    def __init__(self, Exon, Transcript):
+    def __init__(self, builder, Exon, Transcript, types):
         self.Exon = Exon
-        self.types = {
-            'exon',
-            'pseudogenic_exon',
-        }
-
+        self.types = types
         self.decoder = restrict_record_types(self.types, self.decode)
         self.linker = Linker(Transcript, Exon, 'transcript')
 
-    def init_builder(self, builder):
+        # init builder
         builder.transform.append(self.decoder)
         builder.add_handler(self.linker)
 
@@ -117,18 +92,16 @@ class ExonHandler(object):
 
 class CodingSequenceHandler(object):
 
-    def __init__(self, CodingSequence, Transcript):
+    def __init__(self, builder, CodingSequence, Transcript, types):
         self.CodingSequence = CodingSequence
         self.Transcript = Transcript
-        self.types = {'CDS'}
+        self.types = types
+
+        # init builder
         self.transcripts = {}
-
         self.start_end_by_parent = {}
-
-        self.collector = restrict_record_types(self.types, self.collect)
-
-    def init_builder(self, builder):
-        builder.transform.append(self.collector)
+        collector = restrict_record_types(self.types, self.collect)
+        builder.transform.append(collector)
         builder.add_handler(self)
 
     def collect(self, record):
