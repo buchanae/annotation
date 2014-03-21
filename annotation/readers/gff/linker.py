@@ -1,4 +1,4 @@
-from annotation.linker import Linker as LinkerBase
+from annotation.build import Linker as LinkerBase
 
 
 class Linker(LinkerBase):

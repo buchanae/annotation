@@ -1,4 +1,4 @@
-from annotation.builder import Builder
+from annotation.build import Builder
 
 
 class DefaultHandler(object):

@@ -4,7 +4,7 @@ from __future__ import absolute_import
 from gff import GFF
 
 from annotation import models
-from annotation.builder import Builder
+from annotation.build import Builder
 from annotation.readers.gff import handlers
 from annotation.readers.gff.types import default_types
 
