@@ -30,13 +30,13 @@ class ReferenceHandler(object):
     def __init__(self, builder, Reference, types):
         self.Reference = Reference
         self.types = types
-        self.decoder = restrict_record_types(self.types, self.decode)
 
         # init builder
-        builder.transform.append(self.decoder)
+        decoder = restrict_record_types(self.types, self.transform)
+        builder.transform.append(decoder)
 
-    def decode(self, record):
-        return self.Reference(record.ID, record.end)
+    def transform(self, record):
+        yield self.Reference(record.ID, record.end)
 
 
 class GeneHandler(object):
@@ -44,15 +44,15 @@ class GeneHandler(object):
     def __init__(self, builder, Gene, Reference, types):
         self.Gene = Gene
         self.types = types
-        self.decoder = restrict_record_types(self.types, self.decode)
-        self.linker = Linker(Reference, Gene, 'reference', self.reference_ID)
+        decoder = restrict_record_types(self.types, self.transform)
+        linker = Linker(Reference, Gene, 'reference', self.reference_ID)
 
         # init builder
-        builder.transform.append(self.decoder)
-        builder.add_handler(self.linker)
+        builder.transform.append(decoder)
+        builder.add_handler(linker)
 
-    def decode(self, record):
-        return self.Gene(record.ID, record.strand)
+    def transform(self, record):
+        yield self.Gene(record.ID, record.strand)
 
     def reference_ID(self, feature, record):
         return record.parent_ID or record.seqid
@@ -63,15 +63,15 @@ class TranscriptHandler(object):
     def __init__(self, builder, Transcript, Gene, types):
         self.Transcript = Transcript
         self.types = types
-        self.decoder = restrict_record_types(self.types, self.decode)
-        self.linker = Linker(Gene, Transcript, 'gene')
 
         # init builder
-        builder.transform.append(self.decoder)
-        builder.add_handler(self.linker)
+        decoder = restrict_record_types(self.types, self.transform)
+        linker = Linker(Gene, Transcript, 'gene')
+        builder.transform.append(decoder)
+        builder.add_handler(linker)
 
-    def decode(self, record):
-        return self.Transcript(record.ID)
+    def transform(self, record):
+        yield self.Transcript(record.ID)
 
 
 class ExonHandler(object):
@@ -79,15 +79,15 @@ class ExonHandler(object):
     def __init__(self, builder, Exon, Transcript, types):
         self.Exon = Exon
         self.types = types
-        self.decoder = restrict_record_types(self.types, self.decode)
-        self.linker = Linker(Transcript, Exon, 'transcript')
 
         # init builder
-        builder.transform.append(self.decoder)
-        builder.add_handler(self.linker)
+        decoder = restrict_record_types(self.types, self.transform)
+        linker = Linker(Transcript, Exon, 'transcript')
+        builder.transform.append(decoder)
+        builder.add_handler(linker)
 
-    def decode(self, record):
-        return self.Exon(record.start, record.end)
+    def transform(self, record):
+        yield self.Exon(record.start, record.end)
 
 
 class CodingSequenceHandler(object):

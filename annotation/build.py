@@ -1,8 +1,12 @@
 from collections import defaultdict
 import logging
+import types
 
 
 log = logging.getLogger(__name__)
+
+
+class BuildError(Exception): pass
 
 
 class Builder(object):
@@ -24,8 +28,22 @@ class Builder(object):
         # Go through every record and transform it into a node
         for record in records:
             for transform in self.transform:
-                node = transform(record)
-                if node:
+                # Transformers should always use "yield", making them
+                # generators, which allows transformers to yield multiple
+                # nodes if they need to, e.g. to transform a single
+                # CodingSequence object into multiple GFF records.
+                result_gen = transform(record)
+
+                if result_gen is None:
+                    continue
+
+                # Hopefully this prevents people from making the mistake
+                # of using "return" when they should be using "yield".
+                if not isinstance(result_gen, types.GeneratorType):
+                    _msg = 'Tranform functions must be generators. Use "yield" instead of "return"'
+                    raise BuildError(_msg)
+
+                for node in result_gen:
                     for post_transform in self.post_transform:
                         post_transform(node, record)
                     yield node
