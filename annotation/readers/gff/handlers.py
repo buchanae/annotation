@@ -1,4 +1,5 @@
 from collections import defaultdict
+import functools
 
 from annotation.readers.gff.linker import Linker
 
@@ -10,118 +11,93 @@ def restrict_record_types(types, decode_fn):
     return fn
 
 
-class AnnotationHandler(object):
+def decode(model_name, types):
+    def decorator(decode_fn):
 
-    def __init__(self, builder, Annotation, Reference):
-        self.Annotation = Annotation
-        self.Reference = Reference
+        def init_builder(builder, models, types):
+            model_class = getattr(models, model_name)
+            allowed_types = getattr(types, model_name)
+            partial_decode_fn = functools.partial(model_class)
+            fn = restrict_record_types(allowed_types, partial_decode_fn)
+            builder.transform.append(fn)
 
-        # init builder
-        self.annotation = self.Annotation()
-        builder.post_transform.append(self.link_references)
+        decode_fn.init_builder = init_builder
+        return decode_fn
 
-    def link_references(self, node, record):
-        if isinstance(node, self.Reference):
-            node.annotation = self.annotation
-
-
-class ReferenceHandler(object):
-
-    def __init__(self, builder, Reference, types):
-        self.Reference = Reference
-        self.types = types
-
-        # init builder
-        decoder = restrict_record_types(self.types, self.transform)
-        builder.transform.append(decoder)
-
-    def transform(self, record):
-        yield self.Reference(record.ID, record.end)
+    return decorator
 
 
-class GeneHandler(object):
+def link(parent_type_name, child_type_name, parent_key=None, Linker=Linker):
+    def decorator(link_fn):
 
-    def __init__(self, builder, Gene, Reference, types):
-        self.Gene = Gene
-        self.types = types
-        decoder = restrict_record_types(self.types, self.transform)
-        linker = Linker(Reference, Gene, 'reference', self.reference_ID)
+        def init_builder(builder, models, types):
+            parent_type = getattr(models, parent_type_name)
+            child_type = getattr(models, child_type_name)
 
-        # init builder
-        builder.transform.append(decoder)
-        builder.add_handler(linker)
+            linker = Linker(parent_type, child_type, link_fn, parent_key)
+            builder.add_handler(linker)
 
-    def transform(self, record):
-        yield self.Gene(record.ID, record.strand)
+        link_fn.init_builder = init_builder
+        return link_fn
 
-    def reference_ID(self, feature, record):
-        return record.parent_ID or record.seqid
+    return decorator
 
 
-class TranscriptHandler(object):
-
-    def __init__(self, builder, Transcript, Gene, types):
-        self.Transcript = Transcript
-        self.types = types
-
-        # init builder
-        decoder = restrict_record_types(self.types, self.transform)
-        linker = Linker(Gene, Transcript, 'gene')
-        builder.transform.append(decoder)
-        builder.add_handler(linker)
-
-    def transform(self, record):
-        yield self.Transcript(record.ID)
+@decode('Reference')
+def decode_reference(Reference, record):
+    return Reference(record.ID, record.end)
 
 
-class ExonHandler(object):
-
-    def __init__(self, builder, Exon, Transcript, types):
-        self.Exon = Exon
-        self.types = types
-
-        # init builder
-        decoder = restrict_record_types(self.types, self.transform)
-        linker = Linker(Transcript, Exon, 'transcript')
-        builder.transform.append(decoder)
-        builder.add_handler(linker)
-
-    def transform(self, record):
-        yield self.Exon(record.start, record.end)
+@decode('Gene')
+def decode_gene(Gene, record):
+    return Gene(record.ID, record.strand)
 
 
-class CodingSequenceHandler(object):
+def reference_ID(feature, record):
+    return record.parent_ID or record.seqid
 
-    def __init__(self, builder, CodingSequence, Transcript, types):
-        self.CodingSequence = CodingSequence
-        self.Transcript = Transcript
-        self.types = types
 
-        # init builder
-        self.transcripts = {}
-        self.start_end_by_parent = {}
-        collector = restrict_record_types(self.types, self.collect)
-        builder.transform.append(collector)
-        builder.add_handler(self)
+@link('Reference', 'Gene', parent_key=reference_ID)
+def link_gene_reference(gene, reference):
+    gene.reference = reference
 
-    def collect(self, record):
-        # TODO you end up storing every cds min/max
-        parent_ID = record.parent_ID
-        default = 0, 0
-        start, end = self.start_end_by_parent.get(parent_ID, default)
-        start, end = min(start, record.start), max(end, record.end)
-        self.start_end_by_parent[parent_ID] = start, end
 
-    def post_transform(self, node, record):
-        if isinstance(node, self.Transcript):
-            self.transcripts[node.ID] = node
+@decode('Transcript')
+def decode_transcript(Transcript, record):
+    return Transcript(record.ID)
 
-    def finalize(self):
-        for transcript_ID, transcript in self.transcripts.items():
-            try:
-                start, end = self.start_end_by_parent[transcript_ID]
-            except KeyError:
-                pass
-            else:
-                cds = self.CodingSequence(start, end)
-                cds.transcript = transcript
+
+@link('Gene', 'Transcript')
+def link_gene_transcript(transcript, gene):
+    transcript.gene = gene
+
+
+@decode('Exon')
+def decode_exon(Exon, record):
+    return Exon(record.start, record.end)
+
+
+@link('Transcript', 'Exon')
+def link_transcript_exon(exon, transcript):
+    exon.transcript = transcript
+
+
+@decode('CodingSequence')
+def decode_cds(CodingSequence, record):
+    return CodingSequence(record.start, record.end)
+
+
+@link('Transcript', 'CodingSequence')
+def link_transcript_cds(cds, transcript):
+    if not transcript.cds:
+        transcript.cds = cds
+        cds.transcript = transcript
+    else:
+        transcript.cds.start = min(transcript.cds.start, cds.start)
+        transcript.cds.end = max(transcript.cds.end, cds.end)
+
+
+default_handlers = {}
+for key, value in locals().items():
+    if hasattr(value, 'init_builder'):
+        default_handlers[value.__name__] = value

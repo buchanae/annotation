@@ -3,17 +3,14 @@ from annotation.build import Linker as LinkerBase
 
 class Linker(LinkerBase):
 
-    def __init__(self, parent_type, child_type, parent_attr,
-                 parent_ID_func=None):
+    def __init__(self, parent_type, child_type, link_fn,
+                 parent_key=None):
 
         super(Linker, self).__init__()
         self.parent_type = parent_type
         self.child_type = child_type
-        self.parent_attr = parent_attr
-        self.parent_ID_func = parent_ID_func
-
-    def link(self, child, parent):
-        setattr(child, self.parent_attr, parent)
+        self.link_fn = link_fn
+        self.parent_key = parent_key
 
     def post_transform(self, node, record):
         if isinstance(node, self.parent_type):

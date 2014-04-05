@@ -46,6 +46,8 @@ class Builder(object):
                 for node in result_gen:
                     for post_transform in self.post_transform:
                         post_transform(node, record)
+
+                    # TODO check that node is not None?
                     yield node
 
         for finalize in self.finalize:
